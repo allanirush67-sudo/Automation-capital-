@@ -32,6 +32,7 @@
     margin-bottom:24px; line-height:1.5;
   }
   .risk-banner strong { color: var(--amber); }
+  .footer-risk { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
 
   .card { background:var(--bg-raised); border:1px solid var(--line); border-radius:12px; padding:24px; margin-bottom:20px; }
   .card h2 { font-size:16px; font-weight:700; margin-bottom:4px; }
@@ -84,6 +85,26 @@
   .bot-status { font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-dim); margin-top:8px; }
   .bot-status.running { color:var(--green); }
 
+  .builder-field { margin-bottom:16px; }
+  .builder-field label { display:block; font-size:12.5px; color:var(--text-dim); margin-bottom:6px; }
+  .builder-field select, .builder-field input {
+    background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:10px 12px; border-radius:7px; font-size:14px; width:100%; font-family:'JetBrains Mono',monospace;
+  }
+  .builder-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:14px; margin-bottom:4px; }
+
+  .bot-list-item {
+    background:var(--bg); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .bot-list-info h3 { font-size:15px; font-weight:700; margin-bottom:4px; }
+  .bot-list-info p { font-size:12.5px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+  .bot-list-actions { display:flex; gap:8px; align-items:center; }
+  .btn-small { font-size:13px; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; border:none; }
+  .btn-small.start { background:var(--green); color:#06231A; }
+  .btn-small.stop { background:rgba(229,72,77,0.12); color:var(--red); border:1px solid rgba(229,72,77,0.4); }
+  .btn-small.remove { background:transparent; color:var(--text-dim); border:1px solid var(--line); }
+
   /* Trade log */
   .log-table { width:100%; border-collapse:collapse; font-size:13px; }
   .log-table th { text-align:left; color:var(--text-dim); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:0.03em; padding:8px 6px; border-bottom:1px solid var(--line); }
@@ -107,9 +128,7 @@
 
 <main class="wrap">
 
-  <div class="risk-banner">
-    <strong>Risk warning:</strong> Trading derivatives carries a high level of risk and can result in losses that exceed your deposits. Bots automate execution of a strategy — they do not guarantee profit and can lose money, including in fast succession. Only trade with funds you can afford to lose, and test any bot on a demo account before using real funds. Automation Capital is an independent third-party app built on the Deriv API and is not operated by Deriv.
-  </div>
+  <!-- risk banner moved to footer -->
 
   <!-- LOGIN VIEW -->
   <div id="login-view" class="card login-box">
@@ -136,39 +155,32 @@
     </div>
 
     <div class="card">
-      <h2>Bots</h2>
-      <div class="sub">Start a bot to let it trade automatically on your selected account above. Stop anytime.</div>
-      <div class="bot-grid">
+      <h2>Bot builder</h2>
+      <div class="sub">Choose a strategy type, set your parameters, and add it to your bots below.</div>
 
-        <div class="bot-card">
-          <span class="tag">Trend</span>
-          <h3>Momentum Rise/Fall Bot</h3>
-          <p>Watches the last few ticks on Volatility 100. If price is trending up, it buys Rise; trending down, it buys Fall.</p>
-          <div class="bot-controls">
-            <label>Stake</label>
-            <input type="number" id="bot1-stake" value="1" min="0.5" step="0.5">
-            <label>Duration (ticks)</label>
-            <input type="number" id="bot1-duration" value="5" min="1" max="10">
-          </div>
-          <button class="btn-primary" id="bot1-btn" onclick="toggleBot(1)">Start bot</button>
-          <div class="bot-status" id="bot1-status">stopped</div>
-        </div>
-
-        <div class="bot-card">
-          <span class="tag">Digits</span>
-          <h3>Even/Odd Reversion Bot</h3>
-          <p>Tracks the last digit of the last 20 ticks on Volatility 100. If one side (even/odd) has been unusually frequent, it bets on the other reverting.</p>
-          <div class="bot-controls">
-            <label>Stake</label>
-            <input type="number" id="bot2-stake" value="1" min="0.5" step="0.5">
-            <label>Duration (ticks)</label>
-            <input type="number" id="bot2-duration" value="1" min="1" max="10">
-          </div>
-          <button class="btn-primary" id="bot2-btn" onclick="toggleBot(2)">Start bot</button>
-          <div class="bot-status" id="bot2-status">stopped</div>
-        </div>
-
+      <div class="builder-field">
+        <label>Strategy type</label>
+        <select id="builder-type" onchange="renderBuilderFields()">
+          <option value="trend">Momentum Trend — buys Rise/Fall</option>
+          <option value="digit">Digit Reversion — buys Even/Odd</option>
+        </select>
       </div>
+
+      <div id="builder-fields" class="builder-grid"></div>
+
+      <div class="builder-field">
+        <label>Bot name (optional)</label>
+        <input type="text" id="builder-name" placeholder="e.g. My trend bot">
+      </div>
+
+      <button class="btn-primary" onclick="addBot()">+ Add bot</button>
+    </div>
+
+    <div class="card">
+      <h2>My bots</h2>
+      <div class="sub">Start, stop, or remove any bot below.</div>
+      <div id="bot-list"></div>
+      <div class="empty-log" id="empty-bots">No bots yet — build one above.</div>
     </div>
 
     <div class="card">
@@ -184,6 +196,7 @@
     <button class="btn-danger" onclick="logout()">Log out</button>
   </div>
 
+  <p class="footer-risk">Trading involves risk and can result in losses beyond your deposit. Bots do not guarantee profit — test on demo first. Automation Capital is an independent app built on the Deriv API, not operated by Deriv.</p>
 </main>
 
 <script>
@@ -200,7 +213,7 @@ let currentAccount = null;
 let currentToken = null; // the access_token from Deriv
 let balance = null;
 let tickHistory = [];
-let bots = { 1: { running: false }, 2: { running: false } };
+let botConfigs = []; // dynamic list built via the bot builder: {id, type, name, stake, duration, lookback, threshold, running, cooldown}
 let reqId = 1;
 const pending = {};
 
@@ -310,7 +323,8 @@ function logout() {
   accounts = [];
   currentAccount = null;
   currentToken = null;
-  Object.keys(bots).forEach(id => bots[id].running = false);
+  Object.assign(botConfigs, []); botConfigs.length = 0;
+  renderBotList();
   document.getElementById("dashboard-view").classList.add("hidden");
   document.getElementById("login-view").classList.remove("hidden");
   document.getElementById("conn-status").textContent = "not connected";
@@ -447,96 +461,150 @@ async function initDashboard() {
   await connectToAccount(accounts[0]);
 }
 
-// ==== BOT ENGINE ====
-function toggleBot(id) {
-  bots[id].running = !bots[id].running;
-  const btn = document.getElementById(`bot${id}-btn`);
-  const status = document.getElementById(`bot${id}-status`);
-  if (bots[id].running) {
-    btn.textContent = "Stop bot";
-    status.textContent = "running — watching ticks...";
-    status.classList.add("running");
+// ==== BOT BUILDER ====
+let botIdCounter = 1;
+
+function renderBuilderFields() {
+  const type = document.getElementById("builder-type").value;
+  const container = document.getElementById("builder-fields");
+
+  if (type === "trend") {
+    container.innerHTML = `
+      <div class="builder-field"><label>Lookback (ticks)</label><input type="number" id="f-lookback" value="5" min="3" max="20"></div>
+      <div class="builder-field"><label>Stake</label><input type="number" id="f-stake" value="1" min="0.5" step="0.5"></div>
+      <div class="builder-field"><label>Contract duration (ticks)</label><input type="number" id="f-duration" value="5" min="1" max="10"></div>
+    `;
   } else {
-    btn.textContent = "Start bot";
-    status.textContent = "stopped";
-    status.classList.remove("running");
+    container.innerHTML = `
+      <div class="builder-field"><label>Lookback (ticks)</label><input type="number" id="f-lookback" value="20" min="10" max="40"></div>
+      <div class="builder-field"><label>Trigger threshold (count)</label><input type="number" id="f-threshold" value="14" min="10" max="30"></div>
+      <div class="builder-field"><label>Stake</label><input type="number" id="f-stake" value="1" min="0.5" step="0.5"></div>
+      <div class="builder-field"><label>Contract duration (ticks)</label><input type="number" id="f-duration" value="1" min="1" max="10"></div>
+    `;
   }
 }
 
-let bot1Cooldown = false;
-let bot2Cooldown = false;
+function addBot() {
+  const type = document.getElementById("builder-type").value;
+  const stake = parseFloat(document.getElementById("f-stake").value) || 1;
+  const duration = parseInt(document.getElementById("f-duration").value) || 5;
+  const lookback = parseInt(document.getElementById("f-lookback").value) || (type === "trend" ? 5 : 20);
+  const threshold = type === "digit" ? (parseInt(document.getElementById("f-threshold").value) || 14) : null;
+  const customName = document.getElementById("builder-name").value.trim();
+
+  const id = botIdCounter++;
+  const name = customName || (type === "trend" ? `Trend Bot #${id}` : `Digit Bot #${id}`);
+
+  botConfigs.push({ id, type, name, stake, duration, lookback, threshold, running: false, cooldown: false });
+  document.getElementById("builder-name").value = "";
+  renderBotList();
+}
+
+function removeBot(id) {
+  botConfigs = botConfigs.filter(b => b.id !== id);
+  renderBotList();
+}
+
+function toggleBot(id) {
+  const bot = botConfigs.find(b => b.id === id);
+  if (bot) bot.running = !bot.running;
+  renderBotList();
+}
+
+function renderBotList() {
+  const list = document.getElementById("bot-list");
+  const empty = document.getElementById("empty-bots");
+  if (botConfigs.length === 0) {
+    list.innerHTML = "";
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+  list.innerHTML = botConfigs.map(bot => {
+    const params = bot.type === "trend"
+      ? `trend · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`
+      : `digit · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
+    return `
+      <div class="bot-list-item">
+        <div class="bot-list-info">
+          <h3>${bot.name}</h3>
+          <p>${params}</p>
+          <p class="bot-status ${bot.running ? 'running' : ''}">${bot.running ? 'running — watching ticks...' : 'stopped'}</p>
+        </div>
+        <div class="bot-list-actions">
+          <button class="btn-small ${bot.running ? 'stop' : 'start'}" onclick="toggleBot(${bot.id})">${bot.running ? 'Stop' : 'Start'}</button>
+          <button class="btn-small remove" onclick="removeBot(${bot.id})">Remove</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
 
 function evaluateBots() {
-  if (bots[1].running && !bot1Cooldown && tickHistory.length >= 5) {
-    const last5 = tickHistory.slice(-5);
-    const rising = last5.every((v, i) => i === 0 || v >= last5[i - 1]);
-    const falling = last5.every((v, i) => i === 0 || v <= last5[i - 1]);
-    if (rising) placeTrade(1, "CALL");
-    else if (falling) placeTrade(1, "PUT");
-  }
+  botConfigs.forEach(bot => {
+    if (!bot.running || bot.cooldown) return;
 
-  if (bots[2].running && !bot2Cooldown && tickHistory.length >= 20) {
-    const last20 = tickHistory.slice(-20);
-    const evenCount = last20.filter(v => {
-      const lastDigit = Math.floor(v * 100) % 10; // approximate last digit
-      return lastDigit % 2 === 0;
-    }).length;
-    if (evenCount >= 14) placeTrade(2, "DIGITODD"); // evens overrepresented -> bet odd
-    else if (evenCount <= 6) placeTrade(2, "DIGITEVEN");
-  }
+    if (bot.type === "trend" && tickHistory.length >= bot.lookback) {
+      const recent = tickHistory.slice(-bot.lookback);
+      const rising = recent.every((v, i) => i === 0 || v >= recent[i - 1]);
+      const falling = recent.every((v, i) => i === 0 || v <= recent[i - 1]);
+      if (rising) placeTrade(bot, "CALL");
+      else if (falling) placeTrade(bot, "PUT");
+    }
+
+    if (bot.type === "digit" && tickHistory.length >= bot.lookback) {
+      const recent = tickHistory.slice(-bot.lookback);
+      const evenCount = recent.filter(v => (Math.floor(v * 100) % 10) % 2 === 0).length;
+      if (evenCount >= bot.threshold) placeTrade(bot, "DIGITODD");
+      else if (evenCount <= (bot.lookback - bot.threshold)) placeTrade(bot, "DIGITEVEN");
+    }
+  });
 }
 
-async function placeTrade(botId, contractType) {
-  if (botId === 1) bot1Cooldown = true;
-  if (botId === 2) bot2Cooldown = true;
-
-  const stake = parseFloat(document.getElementById(`bot${botId}-stake`).value) || 1;
-  const duration = parseInt(document.getElementById(`bot${botId}-duration`).value) || 5;
+async function placeTrade(bot, contractType) {
+  bot.cooldown = true;
 
   try {
     const proposalRes = await send({
       proposal: 1,
-      amount: stake,
+      amount: bot.stake,
       basis: "stake",
       contract_type: contractType,
       currency: currentAccount.currency,
-      duration: duration,
+      duration: bot.duration,
       duration_unit: "t",
       underlying_symbol: SYMBOL
     });
 
     if (proposalRes.error) {
-      addLogRow(botId, contractType, stake, "error: " + proposalRes.error.message, null);
+      addLogRow(bot.name, contractType, bot.stake, "error: " + proposalRes.error.message, null);
     } else {
       const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
       if (buyRes.error) {
-        addLogRow(botId, contractType, stake, "error: " + buyRes.error.message, null);
+        addLogRow(bot.name, contractType, bot.stake, "error: " + buyRes.error.message, null);
       } else {
         const contractId = buyRes.buy.contract_id;
-        addLogRow(botId, contractType, stake, "pending", contractId);
+        addLogRow(bot.name, contractType, bot.stake, "pending", contractId);
         send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
       }
     }
   } catch (e) {
-    addLogRow(botId, contractType, stake, "error", null);
+    addLogRow(bot.name, contractType, bot.stake, "error", null);
   }
 
   // simple cooldown so bot doesn't spam trades every tick
-  setTimeout(() => {
-    if (botId === 1) bot1Cooldown = false;
-    if (botId === 2) bot2Cooldown = false;
-  }, 8000);
+  setTimeout(() => { bot.cooldown = false; }, 8000);
 }
 
 // ==== TRADE LOG UI ====
-function addLogRow(botId, contractType, stake, result, contractId) {
+function addLogRow(botLabel, contractType, stake, result, contractId) {
   document.getElementById("empty-log").classList.add("hidden");
   const tbody = document.getElementById("log-body");
   const row = document.createElement("tr");
   row.id = contractId ? `row-${contractId}` : "";
   const time = new Date().toLocaleTimeString();
   const resultClass = result === "pending" ? "pending" : (result.startsWith("error") ? "loss" : "");
-  row.innerHTML = `<td>${time}</td><td>Bot ${botId}</td><td>${contractType}</td><td>${stake}</td><td class="${resultClass}">${result}</td>`;
+  row.innerHTML = `<td>${time}</td><td>${botLabel}</td><td>${contractType}</td><td>${stake}</td><td class="${resultClass}">${result}</td>`;
   tbody.prepend(row);
 }
 
@@ -551,6 +619,7 @@ function updateLogResult(contractId, result, profit) {
 
 // ==== BOOTSTRAP ====
 window.addEventListener("load", async () => {
+  renderBuilderFields(); // populate default builder inputs
   const redirect = parseOAuthRedirect();
   if (redirect) {
     const ok = await completeLogin(redirect.code, redirect.state);
