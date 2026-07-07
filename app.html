@@ -116,6 +116,7 @@
     <h1>Connect your Deriv account</h1>
     <p>Log in with your own Deriv account to see your balance and run bots. Automation Capital never sees or stores your password.</p>
     <button class="btn-primary" onclick="startLogin()">Log in with Deriv</button>
+    <p id="login-error" class="hidden" style="color:var(--red); font-size:13px; margin-top:16px;"></p>
   </div>
 
   <!-- DASHBOARD VIEW -->
@@ -187,47 +188,121 @@
 
 <script>
 // ==== CONFIG ====
-const APP_ID = "33LmybMDVZwbkwEkOGHqz";
-const SYMBOL = "R_100"; // Volatility 100 Index
-const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}`;
+const CLIENT_ID = "33LmybMDVZwbkwEkOGHqz"; // your Deriv app_id (new-system client_id)
+const SYMBOL = "1HZ100V"; // Volatility 100 (1s) Index -- new API naming
+const REDIRECT_URI = window.location.origin + window.location.pathname;
+const TOKEN_ENDPOINT = "/api/token"; // our own server function, NOT Deriv directly
 
 // ==== STATE ====
 let ws = null;
-let accounts = []; // {account, token, currency}
+let accounts = []; // for this new flow, a single logged-in account: {account, currency}
 let currentAccount = null;
-let currentToken = null;
+let currentToken = null; // the access_token from Deriv
 let balance = null;
-let tickHistory = []; // recent tick quotes for SYMBOL
+let tickHistory = [];
 let bots = { 1: { running: false }, 2: { running: false } };
 let reqId = 1;
-const pending = {}; // req_id -> resolve function
+const pending = {};
 
 function log(...args) { console.log("[AutomationCapital]", ...args); }
 
-// ==== OAUTH ====
-function startLogin() {
-  window.location.href = OAUTH_URL;
+// ==== PKCE HELPERS ====
+function randomString(length) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const arr = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(arr).map(v => chars[v % chars.length]).join("");
+}
+
+function base64UrlEncode(buffer) {
+  let str = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  return str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return base64UrlEncode(digest);
+}
+
+// ==== LOGIN (new secure flow) ====
+async function startLogin() {
+  const codeVerifier = randomString(64);
+  const state = randomString(24);
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+  sessionStorage.setItem("dc_code_verifier", codeVerifier);
+  sessionStorage.setItem("dc_state", state);
+
+  const authUrl = `https://auth.deriv.com/oauth2/auth?response_type=code`
+    + `&client_id=${encodeURIComponent(CLIENT_ID)}`
+    + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+    + `&scope=${encodeURIComponent("trade")}`
+    + `&state=${encodeURIComponent(state)}`
+    + `&code_challenge=${encodeURIComponent(codeChallenge)}`
+    + `&code_challenge_method=S256`;
+
+  window.location.href = authUrl;
+}
+
+async function completeLogin(code, state) {
+  const savedState = sessionStorage.getItem("dc_state");
+  const codeVerifier = sessionStorage.getItem("dc_code_verifier");
+
+  if (!savedState || state !== savedState) {
+    showLoginError("Login could not be verified (state mismatch). Please try logging in again.");
+    return false;
+  }
+  if (!codeVerifier) {
+    showLoginError("Login session expired. Please try logging in again.");
+    return false;
+  }
+
+  try {
+    const res = await fetch(TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        code_verifier: codeVerifier,
+        redirect_uri: REDIRECT_URI,
+        client_id: CLIENT_ID
+      })
+    });
+    const data = await res.json();
+
+    // clean up
+    sessionStorage.removeItem("dc_state");
+    sessionStorage.removeItem("dc_code_verifier");
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    if (!res.ok || !data.access_token) {
+      showLoginError("Login failed: " + (data.error || "unknown error") + ". This can happen if the server piece (Vercel) isn't set up yet.");
+      return false;
+    }
+
+    currentToken = data.access_token;
+    return true;
+  } catch (e) {
+    showLoginError("Could not reach the login server. Check that the Vercel deployment is live.");
+    return false;
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById("login-error");
+  el.textContent = msg;
+  el.classList.remove("hidden");
 }
 
 function parseOAuthRedirect() {
   const params = new URLSearchParams(window.location.search);
-  const found = [];
-  let i = 1;
-  while (params.has(`acct${i}`)) {
-    found.push({
-      account: params.get(`acct${i}`),
-      token: params.get(`token${i}`),
-      currency: params.get(`cur${i}`)
-    });
-    i++;
+  const code = params.get("code");
+  const state = params.get("state");
+  if (code && state) {
+    return { code, state };
   }
-  if (found.length > 0) {
-    accounts = found;
-    // clean URL so token isn't left visible/sharable
-    window.history.replaceState({}, document.title, window.location.pathname);
-    return true;
-  }
-  return false;
+  return null;
 }
 
 function logout() {
@@ -242,9 +317,9 @@ function logout() {
 }
 
 // ==== WEBSOCKET ====
-function connectWS() {
+function connectWS(wsUrl) {
   return new Promise((resolve, reject) => {
-    ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+    ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       document.getElementById("conn-status").textContent = "connected";
       resolve();
@@ -291,10 +366,8 @@ function handleMessage(data) {
   }
 }
 
-async function authorize(token) {
-  const res = await send({ authorize: token });
-  return res;
-}
+// Note: no in-socket "authorize" call needed anymore -- the OTP embedded
+// in the WebSocket URL itself authenticates the session.
 
 // ==== BALANCE / ACCOUNT UI ====
 function renderBalance() {
@@ -309,26 +382,46 @@ function renderAccountSelect() {
   accounts.forEach((a, idx) => {
     const opt = document.createElement("option");
     opt.value = idx;
-    const isDemo = a.account.startsWith("VRT");
-    opt.textContent = `${a.account} (${a.currency}) — ${isDemo ? "Demo" : "Real"}`;
+    const isDemo = a.account_type === "demo";
+    opt.textContent = `${a.account_id} (${a.currency}) — ${isDemo ? "Demo" : "Real"}`;
     sel.appendChild(opt);
   });
 }
 
 function renderAcctTag() {
   const tag = document.getElementById("acct-tag");
-  const isDemo = currentAccount.account.startsWith("VRT");
+  const isDemo = currentAccount.account_type === "demo";
   tag.textContent = isDemo ? "DEMO" : "REAL";
   tag.className = "acct-tag " + (isDemo ? "demo" : "real");
 }
 
+async function connectToAccount(account) {
+  currentAccount = account;
+  balance = { balance: account.balance, currency: account.currency };
+  renderBalance();
+  renderAcctTag();
+
+  // Get a fresh OTP-based WebSocket URL for this specific account
+  const otpRes = await fetch("/api/otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ access_token: currentToken, account_id: account.account_id })
+  });
+  const otpData = await otpRes.json();
+  if (!otpRes.ok || !otpData.data || !otpData.data.url) {
+    showLoginError("Could not open a trading session for this account.");
+    return;
+  }
+
+  if (ws) ws.close();
+  await connectWS(otpData.data.url);
+  await send({ balance: 1, subscribe: 1 });
+  await send({ ticks: SYMBOL, subscribe: 1 });
+}
+
 async function switchAccount() {
   const idx = document.getElementById("acct-select").value;
-  currentAccount = accounts[idx];
-  currentToken = currentAccount.token;
-  await authorize(currentToken);
-  await send({ balance: 1, subscribe: 1 });
-  renderAcctTag();
+  await connectToAccount(accounts[idx]);
 }
 
 // ==== INIT DASHBOARD ====
@@ -336,14 +429,22 @@ async function initDashboard() {
   document.getElementById("login-view").classList.add("hidden");
   document.getElementById("dashboard-view").classList.remove("hidden");
 
-  await connectWS();
+  // Fetch the user's accounts via our backend
+  const acctRes = await fetch("/api/accounts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ access_token: currentToken })
+  });
+  const acctData = await acctRes.json();
+
+  if (!acctRes.ok || !acctData.data) {
+    showLoginError("Could not load your accounts. Please try logging in again.");
+    return;
+  }
+
+  accounts = acctData.data;
   renderAccountSelect();
-  currentAccount = accounts[0];
-  currentToken = currentAccount.token;
-  await authorize(currentToken);
-  renderAcctTag();
-  await send({ balance: 1, subscribe: 1 });
-  await send({ ticks: SYMBOL, subscribe: 1 });
+  await connectToAccount(accounts[0]);
 }
 
 // ==== BOT ENGINE ====
@@ -401,13 +502,13 @@ async function placeTrade(botId, contractType) {
       currency: currentAccount.currency,
       duration: duration,
       duration_unit: "t",
-      symbol: SYMBOL
+      underlying_symbol: SYMBOL
     });
 
     if (proposalRes.error) {
       addLogRow(botId, contractType, stake, "error: " + proposalRes.error.message, null);
     } else {
-      const buyRes = await send({ buy: proposalRes.proposal.id, price: stake });
+      const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
       if (buyRes.error) {
         addLogRow(botId, contractType, stake, "error: " + buyRes.error.message, null);
       } else {
@@ -449,9 +550,11 @@ function updateLogResult(contractId, result, profit) {
 }
 
 // ==== BOOTSTRAP ====
-window.addEventListener("load", () => {
-  if (parseOAuthRedirect()) {
-    initDashboard();
+window.addEventListener("load", async () => {
+  const redirect = parseOAuthRedirect();
+  if (redirect) {
+    const ok = await completeLogin(redirect.code, redirect.state);
+    if (ok) initDashboard();
   }
 });
 </script>
