@@ -47,7 +47,13 @@
   .nav-cta:hover { filter: brightness(1.08); }
 
   /* Hero */
-  header.hero { padding: 88px 0 64px; border-bottom: 1px solid var(--line); }
+  header.hero { padding: 88px 0 64px; border-bottom: 1px solid var(--line); position: relative; overflow: hidden; }
+  header.hero::before {
+    content: ""; position: absolute; top: -200px; right: -150px; width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(62,207,142,0.18) 0%, rgba(62,207,142,0) 70%);
+    pointer-events: none;
+  }
+  header.hero .wrap { position: relative; z-index: 1; }
   .eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
     font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--green);
@@ -93,6 +99,13 @@
   .node.exit { border-color: rgba(232,163,61,0.4); }
   .node.exit .node-value { color: var(--amber); }
   .arrow { color: var(--text-dim); font-size: 20px; padding: 0 14px; opacity: 0; animation: fadeIn 0.6s ease forwards; }
+
+  .trust-strip { margin-top: 48px; border-top: 1px solid var(--line); padding-top: 32px; }
+  .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .trust-item { display: flex; flex-direction: column; gap: 4px; }
+  .trust-num { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; color: var(--green); }
+  .trust-label { font-size: 12.5px; color: var(--text-dim); }
+  @media (max-width: 600px) { .trust-grid { grid-template-columns: 1fr; gap: 20px; } }
   .node:nth-child(1) { animation-delay: 0.1s; }
   .arrow:nth-child(2) { animation-delay: 0.4s; }
   .node:nth-child(3) { animation-delay: 0.7s; }
@@ -163,7 +176,6 @@
       <a href="#get-started" class="btn-primary">Get a free bot</a>
       <a href="#how-it-works" class="btn-secondary">See how it works</a>
     </div>
-    <p class="risk-note">Trading involves risk. Bots do not guarantee profit — see full risk notice below.</p>
 
     <div class="diagram" id="how-it-works">
       <div class="diagram-label">EXAMPLE — RISE/FALL BOT LOGIC</div>
@@ -176,14 +188,22 @@
       </div>
     </div>
   </div>
+
+  <div class="trust-strip">
+    <div class="wrap trust-grid">
+      <div class="trust-item"><span class="trust-num">24/7</span><span class="trust-label">Bots trade round the clock</span></div>
+      <div class="trust-item"><span class="trust-num">$0</span><span class="trust-label">Cost to start on demo</span></div>
+      <div class="trust-item"><span class="trust-num">2 min</span><span class="trust-label">To connect your account</span></div>
+    </div>
+  </div>
 </header>
 
 <section>
   <div class="wrap">
     <div class="section-head">
-      <div class="kicker">Free bot library</div>
-      <h2>Start with a template, not a blank screen.</h2>
-      <p>Every bot below runs on Deriv's official bot builder. Load one, tweak the stake, and run it on a demo account first.</p>
+      <div class="kicker">Bot builder</div>
+      <h2>Start with a template, or build your own.</h2>
+      <p>Pick a ready-made strategy below, or connect your account and build a custom bot from scratch — no coding required.</p>
     </div>
     <div class="bot-grid">
       <div class="bot-card">
@@ -237,8 +257,8 @@
       <div class="step">
         <div class="step-num">2</div>
         <div>
-          <h3>Load a bot template</h3>
-          <p>Pick one from the library above and open it directly in Deriv Bot.</p>
+          <h3>Log in and pick a bot</h3>
+          <p>Connect your Deriv account, then choose a ready-made strategy or build your own in the bot builder.</p>
         </div>
       </div>
       <div class="step">
@@ -262,7 +282,7 @@
 
 <footer>
   <div class="wrap">
-    <p>Trading CFDs and other derivatives carries a high level of risk and may not be suitable for all investors. You could lose more than your initial deposit. Past performance of any bot or strategy is not a reliable indicator of future results. This page is an independent partner site and is not operated by Deriv.</p>
+    <p>Trading involves risk and can result in losses beyond your deposit. Bots do not guarantee profit. This is an independent partner site, not operated by Deriv.</p>
     <p>© 2026 Automation Capital. Not affiliated with, endorsed by, or a subsidiary of Deriv.</p>
   </div>
 </footer>
