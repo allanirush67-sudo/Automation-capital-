@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automation Capital — Automated Synthetic Indices Trading</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12161C;
+    --bg-raised: #1A1F27;
+    --line: #262D38;
+    --text: #F2F0EA;
+    --text-dim: #8B93A1;
+    --green: #3ECF8E;
+    --red: #E5484D;
+    --amber: #E8A33D;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(18,22,28,0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { font-weight: 800; font-size: 18px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .nav-cta {
+    background: var(--amber); color: #1A1508; font-weight: 700; font-size: 14px;
+    padding: 9px 18px; border-radius: 6px; transition: filter 0.15s;
+  }
+  .nav-cta:hover { filter: brightness(1.08); }
+
+  /* Hero */
+  header.hero { padding: 88px 0 64px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--green);
+    background: rgba(62,207,142,0.08); border: 1px solid rgba(62,207,142,0.25);
+    padding: 5px 12px; border-radius: 100px; margin-bottom: 24px;
+  }
+  h1 {
+    font-size: clamp(36px, 5.5vw, 58px); font-weight: 800; letter-spacing: -0.03em;
+    max-width: 780px; line-height: 1.06;
+  }
+  h1 .accent { color: var(--green); }
+  .lede {
+    font-size: 18px; color: var(--text-dim); max-width: 560px; margin-top: 20px;
+  }
+  .hero-ctas { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--green); color: #06231A; font-weight: 700; font-size: 15px;
+    padding: 14px 26px; border-radius: 7px; transition: filter 0.15s;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-secondary {
+    border: 1px solid var(--line); color: var(--text); font-weight: 600; font-size: 15px;
+    padding: 14px 26px; border-radius: 7px; transition: border-color 0.15s;
+  }
+  .btn-secondary:hover { border-color: #3A4250; }
+  .risk-note { font-size: 12.5px; color: var(--text-dim); margin-top: 14px; }
+
+  /* Bot diagram signature */
+  .diagram {
+    margin-top: 64px; background: var(--bg-raised); border: 1px solid var(--line);
+    border-radius: 12px; padding: 28px 24px; overflow-x: auto;
+  }
+  .diagram-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); margin-bottom: 18px; letter-spacing: 0.04em; }
+  .diagram-row { display: flex; align-items: center; gap: 0; min-width: 640px; }
+  .node {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+    background: var(--bg); flex: 1; opacity: 0; animation: fadeIn 0.6s ease forwards;
+  }
+  .node .node-label { color: var(--text-dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 6px; }
+  .node.buy { border-color: rgba(62,207,142,0.4); }
+  .node.buy .node-value { color: var(--green); }
+  .node.exit { border-color: rgba(232,163,61,0.4); }
+  .node.exit .node-value { color: var(--amber); }
+  .arrow { color: var(--text-dim); font-size: 20px; padding: 0 14px; opacity: 0; animation: fadeIn 0.6s ease forwards; }
+  .node:nth-child(1) { animation-delay: 0.1s; }
+  .arrow:nth-child(2) { animation-delay: 0.4s; }
+  .node:nth-child(3) { animation-delay: 0.7s; }
+  .arrow:nth-child(4) { animation-delay: 1s; }
+  .node:nth-child(5) { animation-delay: 1.3s; }
+  @keyframes fadeIn { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .node, .arrow { animation: none; opacity: 1; }
+  }
+
+  /* Bots section */
+  section { padding: 72px 0; border-bottom: 1px solid var(--line); }
+  .section-head { margin-bottom: 44px; max-width: 600px; }
+  .section-head .kicker { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--amber); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px; }
+  h2 { font-size: clamp(26px, 3.5vw, 34px); font-weight: 800; letter-spacing: -0.02em; }
+  .section-head p { color: var(--text-dim); margin-top: 12px; font-size: 16px; }
+
+  .bot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .bot-card {
+    background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 22px;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .bot-card:hover { border-color: #3A4250; transform: translateY(-2px); }
+  .bot-card .tag {
+    display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    color: var(--green); background: rgba(62,207,142,0.1); padding: 3px 8px; border-radius: 4px; margin-bottom: 14px;
+  }
+  .bot-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .bot-card p { font-size: 14px; color: var(--text-dim); }
+
+  /* Steps */
+  .steps { counter-reset: step; }
+  .step { display: flex; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 14px; color: var(--green);
+    background: rgba(62,207,142,0.1); width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .step h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .step p { font-size: 14.5px; color: var(--text-dim); }
+
+  /* Final CTA */
+  .final-cta { text-align: center; padding: 88px 0; }
+  .final-cta h2 { font-size: clamp(28px, 4vw, 40px); margin-bottom: 16px; }
+  .final-cta p { color: var(--text-dim); max-width: 480px; margin: 0 auto 32px; font-size: 16px; }
+
+  footer { padding: 32px 0; }
+  footer .wrap { display: flex; flex-direction: column; gap: 10px; }
+  footer p { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span>Automation Capital</div>
+    <a href="#get-started" class="nav-cta">Start free</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">● Live on Deriv's synthetic indices</div>
+    <h1>Automated trading bots, <span class="accent">built for you to test free.</span></h1>
+    <p class="lede">Pick a ready-made bot, set your stake, and let it trade Deriv's synthetic indices around the clock. No coding. No cost to start.</p>
+    <div class="hero-ctas">
+      <a href="#get-started" class="btn-primary">Get a free bot</a>
+      <a href="#how-it-works" class="btn-secondary">See how it works</a>
+    </div>
+    <p class="risk-note">Trading involves risk. Bots do not guarantee profit — see full risk notice below.</p>
+
+    <div class="diagram" id="how-it-works">
+      <div class="diagram-label">EXAMPLE — RISE/FALL BOT LOGIC</div>
+      <div class="diagram-row">
+        <div class="node"><span class="node-label">Condition</span><span class="node-value">IF price crosses MA(20)</span></div>
+        <div class="arrow">→</div>
+        <div class="node buy"><span class="node-label">Action</span><span class="node-value">BUY — Rise, $1 stake</span></div>
+        <div class="arrow">→</div>
+        <div class="node exit"><span class="node-label">Exit</span><span class="node-value">Close on +5% or -3%</span></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Free bot library</div>
+      <h2>Start with a template, not a blank screen.</h2>
+      <p>Every bot below runs on Deriv's official bot builder. Load one, tweak the stake, and run it on a demo account first.</p>
+    </div>
+    <div class="bot-grid">
+      <div class="bot-card">
+        <span class="tag">Beginner</span>
+        <h3>Rise/Fall Trend Bot</h3>
+        <p>Follows short-term momentum on Volatility indices. Simple entry, fixed take-profit.</p>
+      </div>
+      <div class="bot-card">
+        <span class="tag">Beginner</span>
+        <h3>Over/Under Bot</h3>
+        <p>Trades digit patterns on the last tick. Popular first bot for new users.</p>
+      </div>
+      <div class="bot-card">
+        <span class="tag">Intermediate</span>
+        <h3>Matches/Differs Bot</h3>
+        <p>Targets digit frequency shifts across a rolling window of ticks.</p>
+      </div>
+      <div class="bot-card">
+        <span class="tag">Intermediate</span>
+        <h3>Martingale Recovery Bot</h3>
+        <p>Adjusts stake size after a loss to recover within a set number of trades. Higher risk — read the notes.</p>
+      </div>
+      <div class="bot-card">
+        <span class="tag">Advanced</span>
+        <h3>Multi-Timeframe Bot</h3>
+        <p>Checks trend alignment across two timeframes before entering.</p>
+      </div>
+      <div class="bot-card">
+        <span class="tag">Advanced</span>
+        <h3>Custom Strategy Starter</h3>
+        <p>A blank logic template with comments, for building your own rules from scratch.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Setup</div>
+      <h2>Three steps to your first bot run.</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <h3>Open a free Deriv account</h3>
+          <p>Takes about two minutes. Starts on a demo balance, so nothing is at risk while you learn.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <h3>Load a bot template</h3>
+          <p>Pick one from the library above and open it directly in Deriv Bot.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <h3>Set your stake and run it</h3>
+          <p>Adjust stake size and limits, then start the bot on demo — switch to real funds only once you're comfortable.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta" style="border-bottom:none;" id="get-started">
+  <div class="wrap">
+    <h2>Ready to try your first bot?</h2>
+    <p>Free to start, runs on demo funds first, no download required.</p>
+    <a href="https://partner-tracking.deriv.com/click?a=42237&o=1&c=3&link_id=1" class="btn-primary">Open free Deriv account</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Trading CFDs and other derivatives carries a high level of risk and may not be suitable for all investors. You could lose more than your initial deposit. Past performance of any bot or strategy is not a reliable indicator of future results. This page is an independent partner site and is not operated by Deriv.</p>
+    <p>© 2026 Automation Capital. Not affiliated with, endorsed by, or a subsidiary of Deriv.</p>
+  </div>
+</footer>
+
+</body>
+</html>
