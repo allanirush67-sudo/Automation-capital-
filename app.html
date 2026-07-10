@@ -146,6 +146,64 @@
   .freebot-card p { font-size:13px; color:var(--text-dim); margin-bottom:16px; }
 
   .hidden { display:none !important; }
+
+  /* Dashboard hub cards */
+  .hub-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; }
+  .hub-card {
+    background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:18px;
+    cursor:pointer; transition:border-color 0.15s, transform 0.15s;
+  }
+  .hub-card:hover { border-color:#3A4250; transform:translateY(-2px); }
+  .hub-icon { font-size:22px; }
+  .hub-card h3 { font-size:14.5px; font-weight:700; margin:10px 0 3px; }
+  .hub-card p { font-size:12px; color:var(--text-dim); }
+
+  /* Bottom status bar */
+  .status-bar {
+    position:fixed; bottom:0; left:0; right:0; z-index:60;
+    background:var(--bg-raised); border-top:1px solid var(--line);
+    padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .status-bar-left { display:flex; align-items:center; gap:10px; }
+  .status-dot { width:9px; height:9px; border-radius:50%; background:var(--text-dim); }
+  .status-dot.active { background:var(--green); box-shadow:0 0 8px var(--green); }
+  .status-bar-text { font-size:13px; font-weight:600; }
+  .status-bar-sub { font-size:11.5px; color:var(--text-dim); }
+  .status-bar-btn {
+    background:var(--green); color:#06231A; font-weight:700; font-size:13px;
+    padding:8px 16px; border-radius:6px; border:none; cursor:pointer;
+  }
+  main { padding-bottom:90px; }
+
+  /* Manual trading v2 */
+  .live-price { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--text-dim); margin-bottom:16px; }
+  .trade-type-select {
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:12px 14px; border-radius:8px; font-size:14.5px; font-weight:600; cursor:pointer;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .chevron { color:var(--text-dim); }
+
+  .modal-overlay {
+    position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.6);
+    display:flex; align-items:flex-end;
+  }
+  .modal-sheet {
+    background:var(--bg-raised); border-top-left-radius:16px; border-top-right-radius:16px;
+    width:100%; max-height:80vh; overflow-y:auto; padding:20px;
+  }
+  .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .modal-header h2 { font-size:17px; font-weight:700; }
+  .modal-close { background:transparent; border:none; color:var(--text-dim); font-size:18px; cursor:pointer; }
+  .modal-group-label { font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin:16px 0 8px; }
+  .modal-group-label.soon { opacity:0.5; margin-top:24px; }
+  .modal-option {
+    padding:14px 12px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer;
+    border:1px solid var(--line); margin-bottom:8px;
+  }
+  .modal-option:hover { border-color:var(--green); }
+
+  .barrier-field { margin-bottom:16px; }
 </style>
 </head>
 <body>
@@ -170,6 +228,7 @@
     <button class="tab-btn" data-tab="builder" onclick="switchTab('builder')">Bot Builder</button>
     <button class="tab-btn" data-tab="manual" onclick="switchTab('manual')">Manual Trading</button>
     <button class="tab-btn" data-tab="freebots" onclick="switchTab('freebots')">Free Bots</button>
+    <button class="tab-btn" data-tab="tradelog" onclick="switchTab('tradelog')">Trade Log</button>
   </div>
 </div>
 
@@ -200,6 +259,38 @@
       </div>
 
       <div class="card">
+        <h2>Get started</h2>
+        <div class="sub">Jump straight to what you need</div>
+        <div class="hub-grid">
+          <div class="hub-card" onclick="switchTab('builder')">
+            <span class="hub-icon">🛠️</span>
+            <h3>Bot Builder</h3>
+            <p>Design a custom strategy</p>
+          </div>
+          <div class="hub-card" onclick="switchTab('freebots')">
+            <span class="hub-icon">⚡</span>
+            <h3>Free Bots</h3>
+            <p>One-tap starter strategies</p>
+          </div>
+          <div class="hub-card" onclick="switchTab('manual')">
+            <span class="hub-icon">🎯</span>
+            <h3>Manual Trading</h3>
+            <p>Place a trade yourself</p>
+          </div>
+          <div class="hub-card" onclick="switchTab('tradelog')">
+            <span class="hub-icon">📊</span>
+            <h3>Trade Log</h3>
+            <p>See your trade history</p>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-danger" onclick="logout()">Log out</button>
+    </div>
+
+    <!-- TAB: Trade Log -->
+    <div id="tab-tradelog" class="tab-content">
+      <div class="card">
         <h2>Trade log</h2>
         <div class="sub">Live results as bots (or manual trades) execute</div>
         <table class="log-table" id="log-table">
@@ -208,15 +299,13 @@
         </table>
         <div class="empty-log" id="empty-log">No trades yet — start a bot or place a manual trade.</div>
       </div>
-
-      <button class="btn-danger" onclick="logout()">Log out</button>
     </div>
 
     <!-- TAB: Bot Builder -->
     <div id="tab-builder" class="tab-content">
       <div class="card">
         <h2>Bot builder</h2>
-        <div class="sub">Choose a strategy type, set your parameters, and add it to your bots below.</div>
+        <div class="sub">Choose a market and strategy type, set your parameters, and add it to your bots below.</div>
 
         <div class="builder-field">
           <label>Strategy type</label>
@@ -248,20 +337,60 @@
     <div id="tab-manual" class="tab-content">
       <div class="card">
         <h2>Manual trading</h2>
-        <div class="sub">Place a single trade yourself on Volatility 100 (1s) Index — no bot involved.</div>
+        <div class="sub">Place a single trade yourself — no bot involved.</div>
 
-        <div class="contract-toggle">
-          <button class="contract-btn up" id="manual-call-btn" onclick="selectManualContract('CALL')">▲ Rise</button>
-          <button class="contract-btn down" id="manual-put-btn" onclick="selectManualContract('PUT')">▼ Fall</button>
+        <div class="builder-field">
+          <label>Market</label>
+          <select id="manual-symbol" onchange="onManualSymbolChange()">
+            <option value="1HZ100V">Volatility 100 (1s) Index</option>
+            <option value="1HZ75V">Volatility 75 (1s) Index</option>
+            <option value="1HZ50V">Volatility 50 (1s) Index</option>
+            <option value="1HZ25V">Volatility 25 (1s) Index</option>
+            <option value="1HZ10V">Volatility 10 (1s) Index</option>
+          </select>
         </div>
+
+        <div class="live-price" id="manual-live-price">Live price: --</div>
+
+        <div class="builder-field">
+          <label>Trade type</label>
+          <button class="trade-type-select" onclick="openTradeTypeModal()">
+            <span id="selected-trade-type-label">Rise/Fall</span>
+            <span class="chevron">▾</span>
+          </button>
+        </div>
+
+        <div id="manual-contract-controls"></div>
 
         <div class="manual-grid">
           <div class="builder-field"><label>Stake</label><input type="number" id="manual-stake" value="1" min="0.5" step="0.5"></div>
           <div class="builder-field"><label>Duration (ticks)</label><input type="number" id="manual-duration" value="5" min="1" max="10"></div>
         </div>
 
-        <button class="btn-primary" id="manual-trade-btn" onclick="placeManualTrade()" disabled>Select Rise or Fall first</button>
+        <button class="btn-primary" id="manual-trade-btn" onclick="placeManualTrade()" disabled>Select a direction first</button>
         <div class="manual-result" id="manual-result"></div>
+      </div>
+    </div>
+
+    <!-- Trade type modal -->
+    <div id="trade-type-modal" class="modal-overlay hidden" onclick="closeTradeTypeModalOutside(event)">
+      <div class="modal-sheet">
+        <div class="modal-header">
+          <h2>Trade types</h2>
+          <button class="modal-close" onclick="closeTradeTypeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-group-label">Ups &amp; Downs</div>
+          <div class="modal-option" onclick="selectTradeType('risefall')">Rise/Fall</div>
+          <div class="modal-option" onclick="selectTradeType('higherlower')">Higher/Lower</div>
+
+          <div class="modal-group-label">Digits</div>
+          <div class="modal-option" onclick="selectTradeType('evenodd')">Even/Odd</div>
+          <div class="modal-option" onclick="selectTradeType('overunder')">Over/Under</div>
+          <div class="modal-option" onclick="selectTradeType('matchesdiffers')">Matches/Differs</div>
+
+          <div class="modal-group-label soon">Touch &amp; No Touch, Accumulators — coming soon</div>
+        </div>
       </div>
     </div>
 
@@ -292,10 +421,21 @@
   <p class="footer-risk">Trading involves risk and can result in losses beyond your deposit. Bots do not guarantee profit — test on demo first. Automation Capital is an independent app built on the Deriv API, not operated by Deriv.</p>
 </main>
 
+<div id="status-bar" class="status-bar hidden">
+  <div class="status-bar-left">
+    <span class="status-dot" id="status-dot"></span>
+    <div>
+      <div class="status-bar-text" id="status-bar-text">No bots running</div>
+      <div class="status-bar-sub" id="status-bar-sub">Build one to get started</div>
+    </div>
+  </div>
+  <button class="status-bar-btn" onclick="switchTab('builder')">Bot Builder</button>
+</div>
+
 <script>
 // ==== CONFIG ====
 const CLIENT_ID = "33LmybMDVZwbkwEkOGHqz"; // your Deriv app_id (new-system client_id)
-const SYMBOL = "1HZ100V"; // Volatility 100 (1s) Index -- new API naming
+const SYMBOL = "1HZ100V"; // Volatility 100 (1s) Index -- default market, still used as fallback
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const TOKEN_ENDPOINT = "/api/token"; // our own server function, NOT Deriv directly
 
@@ -305,7 +445,8 @@ let accounts = []; // for this new flow, a single logged-in account: {account, c
 let currentAccount = null;
 let currentToken = null; // the access_token from Deriv
 let balance = null;
-let tickHistory = [];
+let tickHistories = {}; // symbol -> array of recent quotes, tracked independently per market
+let subscribedSymbols = new Set(); // markets we've already subscribed to ticks for
 let botConfigs = []; // dynamic list built via the bot builder: {id, type, name, stake, duration, lookback, threshold, running, cooldown}
 let reqId = 1;
 const pending = {};
@@ -440,6 +581,7 @@ function logout() {
   document.getElementById("login-view").classList.remove("hidden");
   document.getElementById("tab-nav").classList.add("hidden");
   document.getElementById("nav-balance").classList.add("hidden");
+  document.getElementById("status-bar").classList.add("hidden");
   document.getElementById("conn-status").textContent = "not connected";
 }
 
@@ -449,6 +591,27 @@ function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
   document.getElementById("tab-" + name).classList.add("active");
   document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add("active");
+}
+
+// ==== STATUS BAR ====
+function renderStatusBar() {
+  const bar = document.getElementById("status-bar");
+  const dot = document.getElementById("status-dot");
+  const text = document.getElementById("status-bar-text");
+  const sub = document.getElementById("status-bar-sub");
+
+  bar.classList.remove("hidden");
+  const runningCount = botConfigs.filter(b => b.running).length;
+
+  if (runningCount > 0) {
+    dot.classList.add("active");
+    text.textContent = `${runningCount} bot${runningCount > 1 ? 's' : ''} running`;
+    sub.textContent = "Watching live ticks";
+  } else {
+    dot.classList.remove("active");
+    text.textContent = botConfigs.length > 0 ? "No bots running" : "No bots yet";
+    sub.textContent = botConfigs.length > 0 ? "Start one from Bot Builder" : "Build one to get started";
+  }
 }
 
 // ==== WEBSOCKET ====
@@ -479,6 +642,13 @@ function send(payload) {
   });
 }
 
+// Subscribes to live ticks for a market if we haven't already (shared across bots + manual trading)
+async function ensureTickSubscription(symbol) {
+  if (subscribedSymbols.has(symbol)) return;
+  subscribedSymbols.add(symbol);
+  await send({ ticks: symbol, subscribe: 1 });
+}
+
 function handleMessage(data) {
   if (data.req_id && pending[data.req_id]) {
     pending[data.req_id](data);
@@ -489,9 +659,16 @@ function handleMessage(data) {
     renderBalance();
   }
   if (data.msg_type === "tick" && data.tick) {
-    tickHistory.push(data.tick.quote);
-    if (tickHistory.length > 30) tickHistory.shift();
+    const sym = data.tick.symbol;
+    if (!tickHistories[sym]) tickHistories[sym] = [];
+    tickHistories[sym].push(data.tick.quote);
+    if (tickHistories[sym].length > 30) tickHistories[sym].shift();
     evaluateBots();
+
+    if (sym === manualSymbol) {
+      const priceEl = document.getElementById("manual-live-price");
+      if (priceEl) priceEl.textContent = "Live price: " + data.tick.quote;
+    }
   }
   if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
     const c = data.proposal_open_contract;
@@ -550,9 +727,14 @@ async function connectToAccount(account) {
   }
 
   if (ws) ws.close();
+  subscribedSymbols = new Set(); // fresh connection = fresh subscriptions
   await connectWS(otpData.data.url);
   await send({ balance: 1, subscribe: 1 });
-  await send({ ticks: SYMBOL, subscribe: 1 });
+  await ensureTickSubscription(manualSymbol);
+  // re-subscribe to markets used by any bots that already exist (e.g. after switching accounts)
+  for (const bot of botConfigs) {
+    await ensureTickSubscription(bot.symbol);
+  }
 }
 
 async function switchAccount() {
@@ -565,6 +747,7 @@ async function initDashboard() {
   document.getElementById("login-view").classList.add("hidden");
   document.getElementById("dashboard-view").classList.remove("hidden");
   document.getElementById("tab-nav").classList.remove("hidden");
+  renderStatusBar();
 
   // Fetch the user's accounts via our backend
   const acctRes = await fetch("/api/accounts", {
@@ -591,14 +774,24 @@ function renderBuilderFields() {
   const type = document.getElementById("builder-type").value;
   const container = document.getElementById("builder-fields");
 
+  const marketOptions = `
+    <option value="1HZ100V">Volatility 100 (1s) Index</option>
+    <option value="1HZ75V">Volatility 75 (1s) Index</option>
+    <option value="1HZ50V">Volatility 50 (1s) Index</option>
+    <option value="1HZ25V">Volatility 25 (1s) Index</option>
+    <option value="1HZ10V">Volatility 10 (1s) Index</option>
+  `;
+
   if (type === "trend") {
     container.innerHTML = `
+      <div class="builder-field"><label>Market</label><select id="f-symbol">${marketOptions}</select></div>
       <div class="builder-field"><label>Lookback (ticks)</label><input type="number" id="f-lookback" value="5" min="3" max="20"></div>
       <div class="builder-field"><label>Stake</label><input type="number" id="f-stake" value="1" min="0.5" step="0.5"></div>
       <div class="builder-field"><label>Contract duration (ticks)</label><input type="number" id="f-duration" value="5" min="1" max="10"></div>
     `;
   } else {
     container.innerHTML = `
+      <div class="builder-field"><label>Market</label><select id="f-symbol">${marketOptions}</select></div>
       <div class="builder-field"><label>Lookback (ticks)</label><input type="number" id="f-lookback" value="20" min="10" max="40"></div>
       <div class="builder-field"><label>Trigger threshold (count)</label><input type="number" id="f-threshold" value="14" min="10" max="30"></div>
       <div class="builder-field"><label>Stake</label><input type="number" id="f-stake" value="1" min="0.5" step="0.5"></div>
@@ -607,8 +800,9 @@ function renderBuilderFields() {
   }
 }
 
-function addBot() {
+async function addBot() {
   const type = document.getElementById("builder-type").value;
+  const symbol = document.getElementById("f-symbol").value;
   const stake = parseFloat(document.getElementById("f-stake").value) || 1;
   const duration = parseInt(document.getElementById("f-duration").value) || 5;
   const lookback = parseInt(document.getElementById("f-lookback").value) || (type === "trend" ? 5 : 20);
@@ -618,8 +812,9 @@ function addBot() {
   const id = botIdCounter++;
   const name = customName || (type === "trend" ? `Trend Bot #${id}` : `Digit Bot #${id}`);
 
-  botConfigs.push({ id, type, name, stake, duration, lookback, threshold, running: false, cooldown: false });
+  botConfigs.push({ id, type, name, symbol, stake, duration, lookback, threshold, running: false, cooldown: false });
   document.getElementById("builder-name").value = "";
+  await ensureTickSubscription(symbol);
   renderBotList();
 }
 
@@ -637,6 +832,7 @@ function toggleBot(id) {
 function renderBotList() {
   const list = document.getElementById("bot-list");
   const empty = document.getElementById("empty-bots");
+  renderStatusBar();
   if (botConfigs.length === 0) {
     list.innerHTML = "";
     empty.classList.remove("hidden");
@@ -645,8 +841,8 @@ function renderBotList() {
   empty.classList.add("hidden");
   list.innerHTML = botConfigs.map(bot => {
     const params = bot.type === "trend"
-      ? `trend · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`
-      : `digit · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
+      ? `${bot.symbol} · trend · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`
+      : `${bot.symbol} · digit · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
     return `
       <div class="bot-list-item">
         <div class="bot-list-info">
@@ -666,17 +862,18 @@ function renderBotList() {
 function evaluateBots() {
   botConfigs.forEach(bot => {
     if (!bot.running || bot.cooldown) return;
+    const hist = tickHistories[bot.symbol] || [];
 
-    if (bot.type === "trend" && tickHistory.length >= bot.lookback) {
-      const recent = tickHistory.slice(-bot.lookback);
+    if (bot.type === "trend" && hist.length >= bot.lookback) {
+      const recent = hist.slice(-bot.lookback);
       const rising = recent.every((v, i) => i === 0 || v >= recent[i - 1]);
       const falling = recent.every((v, i) => i === 0 || v <= recent[i - 1]);
       if (rising) placeTrade(bot, "CALL");
       else if (falling) placeTrade(bot, "PUT");
     }
 
-    if (bot.type === "digit" && tickHistory.length >= bot.lookback) {
-      const recent = tickHistory.slice(-bot.lookback);
+    if (bot.type === "digit" && hist.length >= bot.lookback) {
+      const recent = hist.slice(-bot.lookback);
       const evenCount = recent.filter(v => (Math.floor(v * 100) % 10) % 2 === 0).length;
       if (evenCount >= bot.threshold) placeTrade(bot, "DIGITODD");
       else if (evenCount <= (bot.lookback - bot.threshold)) placeTrade(bot, "DIGITEVEN");
@@ -696,7 +893,7 @@ async function placeTrade(bot, contractType) {
       currency: currentAccount.currency,
       duration: bot.duration,
       duration_unit: "t",
-      underlying_symbol: SYMBOL
+      underlying_symbol: bot.symbol
     });
 
     if (proposalRes.error) {
@@ -720,54 +917,113 @@ async function placeTrade(bot, contractType) {
 }
 
 // ==== MANUAL TRADING ====
-let manualContractType = null;
+let manualSymbol = SYMBOL;
+let currentTradeType = "risefall";
+let manualDirection = null;
 
-function selectManualContract(type) {
-  manualContractType = type;
-  const callBtn = document.getElementById("manual-call-btn");
-  const putBtn = document.getElementById("manual-put-btn");
-  callBtn.classList.toggle("selected", type === "CALL");
-  putBtn.classList.toggle("selected", type === "PUT");
-  const tradeBtn = document.getElementById("manual-trade-btn");
-  tradeBtn.disabled = false;
-  tradeBtn.textContent = type === "CALL" ? "Buy Rise" : "Buy Fall";
+const TRADE_TYPE_CONFIG = {
+  risefall:      { label: "Rise/Fall",       options: [{label:"▲ Rise", value:"CALL", side:"up"}, {label:"▼ Fall", value:"PUT", side:"down"}], barrier: null },
+  higherlower:   { label: "Higher/Lower",    options: [{label:"▲ Higher", value:"CALL", side:"up"}, {label:"▼ Lower", value:"PUT", side:"down"}], barrier: "offset" },
+  evenodd:       { label: "Even/Odd",        options: [{label:"Even", value:"DIGITEVEN", side:"up"}, {label:"Odd", value:"DIGITODD", side:"down"}], barrier: null },
+  overunder:     { label: "Over/Under",      options: [{label:"Over", value:"DIGITOVER", side:"up"}, {label:"Under", value:"DIGITUNDER", side:"down"}], barrier: "digit" },
+  matchesdiffers:{ label: "Matches/Differs", options: [{label:"Matches", value:"DIGITMATCH", side:"up"}, {label:"Differs", value:"DIGITDIFF", side:"down"}], barrier: "digit" }
+};
+
+function openTradeTypeModal() { document.getElementById("trade-type-modal").classList.remove("hidden"); }
+function closeTradeTypeModal() { document.getElementById("trade-type-modal").classList.add("hidden"); }
+function closeTradeTypeModalOutside(e) { if (e.target.id === "trade-type-modal") closeTradeTypeModal(); }
+
+function selectTradeType(key) {
+  currentTradeType = key;
+  document.getElementById("selected-trade-type-label").textContent = TRADE_TYPE_CONFIG[key].label;
+  manualDirection = null;
+  closeTradeTypeModal();
+  renderManualContractControls();
+  updateManualTradeButton();
+}
+
+function renderManualContractControls() {
+  const cfg = TRADE_TYPE_CONFIG[currentTradeType];
+  const container = document.getElementById("manual-contract-controls");
+  let html = '<div class="contract-toggle">';
+  cfg.options.forEach(opt => {
+    html += `<button class="contract-btn ${opt.side}" id="manual-dir-${opt.value}" onclick="selectManualDirection('${opt.value}')">${opt.label}</button>`;
+  });
+  html += '</div>';
+  if (cfg.barrier === "digit") {
+    html += `<div class="barrier-field builder-field"><label>Barrier digit (0–9)</label><input type="number" id="manual-barrier" min="0" max="9" value="5"></div>`;
+  } else if (cfg.barrier === "offset") {
+    html += `<div class="barrier-field builder-field"><label>Barrier offset (e.g. +0.5 or -0.5)</label><input type="text" id="manual-barrier" value="+0.5"></div>`;
+  }
+  container.innerHTML = html;
+}
+
+function selectManualDirection(value) {
+  manualDirection = value;
+  document.querySelectorAll(".contract-btn").forEach(b => b.classList.remove("selected"));
+  const btn = document.getElementById("manual-dir-" + value);
+  if (btn) btn.classList.add("selected");
+  updateManualTradeButton();
+}
+
+function updateManualTradeButton() {
+  const btn = document.getElementById("manual-trade-btn");
+  if (manualDirection) {
+    btn.disabled = false;
+    btn.textContent = "Place trade";
+  } else {
+    btn.disabled = true;
+    btn.textContent = "Select a direction first";
+  }
+}
+
+async function onManualSymbolChange() {
+  manualSymbol = document.getElementById("manual-symbol").value;
+  document.getElementById("manual-live-price").textContent = "Live price: --";
+  await ensureTickSubscription(manualSymbol);
 }
 
 async function placeManualTrade() {
-  if (!manualContractType) return;
+  if (!manualDirection) return;
   const stake = parseFloat(document.getElementById("manual-stake").value) || 1;
   const duration = parseInt(document.getElementById("manual-duration").value) || 5;
+  const cfg = TRADE_TYPE_CONFIG[currentTradeType];
   const resultEl = document.getElementById("manual-result");
   resultEl.textContent = "Placing trade...";
 
-  try {
-    const proposalRes = await send({
-      proposal: 1,
-      amount: stake,
-      basis: "stake",
-      contract_type: manualContractType,
-      currency: currentAccount.currency,
-      duration: duration,
-      duration_unit: "t",
-      underlying_symbol: SYMBOL
-    });
+  const payload = {
+    proposal: 1,
+    amount: stake,
+    basis: "stake",
+    contract_type: manualDirection,
+    currency: currentAccount.currency,
+    duration: duration,
+    duration_unit: "t",
+    underlying_symbol: manualSymbol
+  };
+  if (cfg.barrier) {
+    const barrierEl = document.getElementById("manual-barrier");
+    if (barrierEl) payload.barrier = barrierEl.value;
+  }
 
+  try {
+    const proposalRes = await send(payload);
     if (proposalRes.error) {
       resultEl.textContent = "Error: " + proposalRes.error.message;
-      addLogRow("Manual", manualContractType, stake, "error: " + proposalRes.error.message, null);
+      addLogRow("Manual", manualDirection, stake, "error: " + proposalRes.error.message, null);
       return;
     }
 
     const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
     if (buyRes.error) {
       resultEl.textContent = "Error: " + buyRes.error.message;
-      addLogRow("Manual", manualContractType, stake, "error: " + buyRes.error.message, null);
+      addLogRow("Manual", manualDirection, stake, "error: " + buyRes.error.message, null);
       return;
     }
 
     const contractId = buyRes.buy.contract_id;
-    resultEl.textContent = "Trade placed — check the Trade log on Dashboard for the result.";
-    addLogRow("Manual", manualContractType, stake, "pending", contractId);
+    resultEl.textContent = "Trade placed — check the Trade Log tab for the result.";
+    addLogRow("Manual", manualDirection, stake, "pending", contractId);
     send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
   } catch (e) {
     resultEl.textContent = "Something went wrong placing the trade.";
@@ -775,15 +1031,16 @@ async function placeManualTrade() {
 }
 
 // ==== FREE BOTS ====
-function addFreeBot(type) {
+async function addFreeBot(type) {
   const id = botIdCounter++;
   let bot;
   if (type === "trend") {
-    bot = { id, type: "trend", name: `Free Trend Bot #${id}`, stake: 1, duration: 5, lookback: 5, threshold: null, running: false, cooldown: false };
+    bot = { id, type: "trend", name: `Free Trend Bot #${id}`, symbol: SYMBOL, stake: 1, duration: 5, lookback: 5, threshold: null, running: false, cooldown: false };
   } else {
-    bot = { id, type: "digit", name: `Free Digit Bot #${id}`, stake: 1, duration: 1, lookback: 20, threshold: 14, running: false, cooldown: false };
+    bot = { id, type: "digit", name: `Free Digit Bot #${id}`, symbol: SYMBOL, stake: 1, duration: 1, lookback: 20, threshold: 14, running: false, cooldown: false };
   }
   botConfigs.push(bot);
+  await ensureTickSubscription(SYMBOL);
   renderBotList();
   switchTab("builder");
 }
@@ -812,6 +1069,7 @@ function updateLogResult(contractId, result, profit) {
 // ==== BOOTSTRAP ====
 window.addEventListener("load", async () => {
   renderBuilderFields(); // populate default builder inputs
+  renderManualContractControls(); // populate default Rise/Fall buttons
   const redirect = parseOAuthRedirect();
   if (redirect) {
     const ok = await completeLogin(redirect.code, redirect.state);
