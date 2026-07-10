@@ -22,7 +22,20 @@
   nav .wrap { display:flex; align-items:center; justify-content:space-between; height:60px; }
   .brand { font-weight:800; font-size:17px; display:flex; align-items:center; gap:8px; }
   .brand .dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); }
-  #conn-status { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-dim); }
+  #conn-status { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); }
+  .nav-right { display:flex; align-items:center; gap:14px; }
+  .nav-balance { display:flex; align-items:baseline; gap:6px; font-size:15px; font-weight:600; }
+  .nav-balance .acct-tag { margin-left:4px; }
+
+  .tab-nav { position:sticky; top:60px; z-index:49; background:var(--bg); border-bottom:1px solid var(--line); overflow-x:auto; }
+  .tab-nav-inner { display:flex; gap:4px; height:48px; align-items:center; }
+  .tab-btn {
+    background:transparent; border:none; color:var(--text-dim); font-size:14px; font-weight:600;
+    padding:8px 14px; border-radius:7px; cursor:pointer; white-space:nowrap;
+  }
+  .tab-btn.active { background:var(--bg-raised); color:var(--text); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
 
   main { padding: 28px 0 80px; }
 
@@ -114,17 +127,51 @@
   .log-table .pending { color:var(--amber); }
   .empty-log { color:var(--text-dim); font-size:13.5px; padding:20px 0; text-align:center; }
 
+  /* Manual trading */
+  .manual-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-bottom:18px; }
+  .contract-toggle { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .contract-btn {
+    flex:1; min-width:100px; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:12px; border-radius:8px; font-weight:600; font-size:14px; cursor:pointer; text-align:center;
+  }
+  .contract-btn.selected.up { border-color:var(--green); color:var(--green); background:rgba(62,207,142,0.08); }
+  .contract-btn.selected.down { border-color:var(--red); color:var(--red); background:rgba(229,72,77,0.08); }
+  .manual-result { margin-top:14px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-dim); }
+
+  /* Free bots */
+  .freebot-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px; }
+  .freebot-card { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:20px; }
+  .freebot-card .tag { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--green); background:rgba(62,207,142,0.1); padding:3px 8px; border-radius:4px; }
+  .freebot-card h3 { font-size:15.5px; font-weight:700; margin:10px 0 6px; }
+  .freebot-card p { font-size:13px; color:var(--text-dim); margin-bottom:16px; }
+
   .hidden { display:none !important; }
 </style>
 </head>
 <body>
 
 <nav>
-  <div class="wrap">
+  <div class="wrap nav-inner">
     <div class="brand"><span class="dot"></span>Automation Capital</div>
-    <div id="conn-status">not connected</div>
+    <div class="nav-right">
+      <div id="nav-balance" class="nav-balance hidden">
+        <span class="mono" id="nav-balance-amount">--</span>
+        <span id="nav-balance-cur"></span>
+        <span class="acct-tag" id="nav-acct-tag"></span>
+      </div>
+      <div id="conn-status">not connected</div>
+    </div>
   </div>
 </nav>
+
+<div id="tab-nav" class="tab-nav hidden">
+  <div class="wrap tab-nav-inner">
+    <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" data-tab="builder" onclick="switchTab('builder')">Bot Builder</button>
+    <button class="tab-btn" data-tab="manual" onclick="switchTab('manual')">Manual Trading</button>
+    <button class="tab-btn" data-tab="freebots" onclick="switchTab('freebots')">Free Bots</button>
+  </div>
+</div>
 
 <main class="wrap">
 
@@ -142,59 +189,104 @@
   <!-- DASHBOARD VIEW -->
   <div id="dashboard-view" class="hidden">
 
-    <div class="card">
-      <h2>Account</h2>
-      <div class="sub">Live balance, updated automatically</div>
-      <div class="balance-row">
-        <span class="balance-amount mono" id="balance-amount">--</span>
-        <span class="balance-cur" id="balance-cur"></span>
-        <span class="acct-tag" id="acct-tag"></span>
+    <!-- TAB: Dashboard -->
+    <div id="tab-dashboard" class="tab-content active">
+      <div class="card">
+        <h2>Account</h2>
+        <div class="sub">Switch between your connected accounts</div>
+        <div class="acct-select">
+          <select id="acct-select" onchange="switchAccount()"></select>
+        </div>
       </div>
-      <div class="acct-select">
-        <select id="acct-select" onchange="switchAccount()"></select>
+
+      <div class="card">
+        <h2>Trade log</h2>
+        <div class="sub">Live results as bots (or manual trades) execute</div>
+        <table class="log-table" id="log-table">
+          <thead><tr><th>Time</th><th>Bot</th><th>Contract</th><th>Stake</th><th>Result</th></tr></thead>
+          <tbody id="log-body"></tbody>
+        </table>
+        <div class="empty-log" id="empty-log">No trades yet — start a bot or place a manual trade.</div>
+      </div>
+
+      <button class="btn-danger" onclick="logout()">Log out</button>
+    </div>
+
+    <!-- TAB: Bot Builder -->
+    <div id="tab-builder" class="tab-content">
+      <div class="card">
+        <h2>Bot builder</h2>
+        <div class="sub">Choose a strategy type, set your parameters, and add it to your bots below.</div>
+
+        <div class="builder-field">
+          <label>Strategy type</label>
+          <select id="builder-type" onchange="renderBuilderFields()">
+            <option value="trend">Momentum Trend — buys Rise/Fall</option>
+            <option value="digit">Digit Reversion — buys Even/Odd</option>
+          </select>
+        </div>
+
+        <div id="builder-fields" class="builder-grid"></div>
+
+        <div class="builder-field">
+          <label>Bot name (optional)</label>
+          <input type="text" id="builder-name" placeholder="e.g. My trend bot">
+        </div>
+
+        <button class="btn-primary" onclick="addBot()">+ Add bot</button>
+      </div>
+
+      <div class="card">
+        <h2>My bots</h2>
+        <div class="sub">Start, stop, or remove any bot below.</div>
+        <div id="bot-list"></div>
+        <div class="empty-log" id="empty-bots">No bots yet — build one above.</div>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Bot builder</h2>
-      <div class="sub">Choose a strategy type, set your parameters, and add it to your bots below.</div>
+    <!-- TAB: Manual Trading -->
+    <div id="tab-manual" class="tab-content">
+      <div class="card">
+        <h2>Manual trading</h2>
+        <div class="sub">Place a single trade yourself on Volatility 100 (1s) Index — no bot involved.</div>
 
-      <div class="builder-field">
-        <label>Strategy type</label>
-        <select id="builder-type" onchange="renderBuilderFields()">
-          <option value="trend">Momentum Trend — buys Rise/Fall</option>
-          <option value="digit">Digit Reversion — buys Even/Odd</option>
-        </select>
+        <div class="contract-toggle">
+          <button class="contract-btn up" id="manual-call-btn" onclick="selectManualContract('CALL')">▲ Rise</button>
+          <button class="contract-btn down" id="manual-put-btn" onclick="selectManualContract('PUT')">▼ Fall</button>
+        </div>
+
+        <div class="manual-grid">
+          <div class="builder-field"><label>Stake</label><input type="number" id="manual-stake" value="1" min="0.5" step="0.5"></div>
+          <div class="builder-field"><label>Duration (ticks)</label><input type="number" id="manual-duration" value="5" min="1" max="10"></div>
+        </div>
+
+        <button class="btn-primary" id="manual-trade-btn" onclick="placeManualTrade()" disabled>Select Rise or Fall first</button>
+        <div class="manual-result" id="manual-result"></div>
       </div>
+    </div>
 
-      <div id="builder-fields" class="builder-grid"></div>
-
-      <div class="builder-field">
-        <label>Bot name (optional)</label>
-        <input type="text" id="builder-name" placeholder="e.g. My trend bot">
+    <!-- TAB: Free Bots -->
+    <div id="tab-freebots" class="tab-content">
+      <div class="card">
+        <h2>Free bots</h2>
+        <div class="sub">One-tap starter bots with sensible default settings — great for a first test.</div>
+        <div class="freebot-grid">
+          <div class="freebot-card">
+            <span class="tag">Beginner</span>
+            <h3>Momentum Trend Bot</h3>
+            <p>Watches the last 5 ticks. Buys Rise on an uptrend, Fall on a downtrend. $1 stake, 5-tick duration.</p>
+            <button class="btn-primary" onclick="addFreeBot('trend')">+ Add to my bots</button>
+          </div>
+          <div class="freebot-card">
+            <span class="tag">Beginner</span>
+            <h3>Digit Reversion Bot</h3>
+            <p>Watches the last 20 ticks' digits. Bets on reversion when one side (even/odd) is overrepresented. $1 stake.</p>
+            <button class="btn-primary" onclick="addFreeBot('digit')">+ Add to my bots</button>
+          </div>
+        </div>
       </div>
-
-      <button class="btn-primary" onclick="addBot()">+ Add bot</button>
     </div>
 
-    <div class="card">
-      <h2>My bots</h2>
-      <div class="sub">Start, stop, or remove any bot below.</div>
-      <div id="bot-list"></div>
-      <div class="empty-log" id="empty-bots">No bots yet — build one above.</div>
-    </div>
-
-    <div class="card">
-      <h2>Trade log</h2>
-      <div class="sub">Live results as bots place trades</div>
-      <table class="log-table" id="log-table">
-        <thead><tr><th>Time</th><th>Bot</th><th>Contract</th><th>Stake</th><th>Result</th></tr></thead>
-        <tbody id="log-body"></tbody>
-      </table>
-      <div class="empty-log" id="empty-log">No trades yet — start a bot above.</div>
-    </div>
-
-    <button class="btn-danger" onclick="logout()">Log out</button>
   </div>
 
   <p class="footer-risk">Trading involves risk and can result in losses beyond your deposit. Bots do not guarantee profit — test on demo first. Automation Capital is an independent app built on the Deriv API, not operated by Deriv.</p>
@@ -346,7 +438,17 @@ function logout() {
   renderBotList();
   document.getElementById("dashboard-view").classList.add("hidden");
   document.getElementById("login-view").classList.remove("hidden");
+  document.getElementById("tab-nav").classList.add("hidden");
+  document.getElementById("nav-balance").classList.add("hidden");
   document.getElementById("conn-status").textContent = "not connected";
+}
+
+// ==== TAB NAVIGATION ====
+function switchTab(name) {
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add("active");
 }
 
 // ==== WEBSOCKET ====
@@ -405,8 +507,9 @@ function handleMessage(data) {
 // ==== BALANCE / ACCOUNT UI ====
 function renderBalance() {
   if (!balance) return;
-  document.getElementById("balance-amount").textContent = Number(balance.balance).toFixed(2);
-  document.getElementById("balance-cur").textContent = balance.currency;
+  document.getElementById("nav-balance-amount").textContent = Number(balance.balance).toFixed(2);
+  document.getElementById("nav-balance-cur").textContent = balance.currency;
+  document.getElementById("nav-balance").classList.remove("hidden");
 }
 
 function renderAccountSelect() {
@@ -422,7 +525,7 @@ function renderAccountSelect() {
 }
 
 function renderAcctTag() {
-  const tag = document.getElementById("acct-tag");
+  const tag = document.getElementById("nav-acct-tag");
   const isDemo = currentAccount.account_type === "demo";
   tag.textContent = isDemo ? "DEMO" : "REAL";
   tag.className = "acct-tag " + (isDemo ? "demo" : "real");
@@ -461,6 +564,7 @@ async function switchAccount() {
 async function initDashboard() {
   document.getElementById("login-view").classList.add("hidden");
   document.getElementById("dashboard-view").classList.remove("hidden");
+  document.getElementById("tab-nav").classList.remove("hidden");
 
   // Fetch the user's accounts via our backend
   const acctRes = await fetch("/api/accounts", {
@@ -613,6 +717,75 @@ async function placeTrade(bot, contractType) {
 
   // simple cooldown so bot doesn't spam trades every tick
   setTimeout(() => { bot.cooldown = false; }, 8000);
+}
+
+// ==== MANUAL TRADING ====
+let manualContractType = null;
+
+function selectManualContract(type) {
+  manualContractType = type;
+  const callBtn = document.getElementById("manual-call-btn");
+  const putBtn = document.getElementById("manual-put-btn");
+  callBtn.classList.toggle("selected", type === "CALL");
+  putBtn.classList.toggle("selected", type === "PUT");
+  const tradeBtn = document.getElementById("manual-trade-btn");
+  tradeBtn.disabled = false;
+  tradeBtn.textContent = type === "CALL" ? "Buy Rise" : "Buy Fall";
+}
+
+async function placeManualTrade() {
+  if (!manualContractType) return;
+  const stake = parseFloat(document.getElementById("manual-stake").value) || 1;
+  const duration = parseInt(document.getElementById("manual-duration").value) || 5;
+  const resultEl = document.getElementById("manual-result");
+  resultEl.textContent = "Placing trade...";
+
+  try {
+    const proposalRes = await send({
+      proposal: 1,
+      amount: stake,
+      basis: "stake",
+      contract_type: manualContractType,
+      currency: currentAccount.currency,
+      duration: duration,
+      duration_unit: "t",
+      underlying_symbol: SYMBOL
+    });
+
+    if (proposalRes.error) {
+      resultEl.textContent = "Error: " + proposalRes.error.message;
+      addLogRow("Manual", manualContractType, stake, "error: " + proposalRes.error.message, null);
+      return;
+    }
+
+    const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
+    if (buyRes.error) {
+      resultEl.textContent = "Error: " + buyRes.error.message;
+      addLogRow("Manual", manualContractType, stake, "error: " + buyRes.error.message, null);
+      return;
+    }
+
+    const contractId = buyRes.buy.contract_id;
+    resultEl.textContent = "Trade placed — check the Trade log on Dashboard for the result.";
+    addLogRow("Manual", manualContractType, stake, "pending", contractId);
+    send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
+  } catch (e) {
+    resultEl.textContent = "Something went wrong placing the trade.";
+  }
+}
+
+// ==== FREE BOTS ====
+function addFreeBot(type) {
+  const id = botIdCounter++;
+  let bot;
+  if (type === "trend") {
+    bot = { id, type: "trend", name: `Free Trend Bot #${id}`, stake: 1, duration: 5, lookback: 5, threshold: null, running: false, cooldown: false };
+  } else {
+    bot = { id, type: "digit", name: `Free Digit Bot #${id}`, stake: 1, duration: 1, lookback: 20, threshold: 14, running: false, cooldown: false };
+  }
+  botConfigs.push(bot);
+  renderBotList();
+  switchTab("builder");
 }
 
 // ==== TRADE LOG UI ====
