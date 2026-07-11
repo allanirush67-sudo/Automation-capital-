@@ -412,6 +412,12 @@
             <p>Watches the last 20 ticks' digits. Bets on reversion when one side (even/odd) is overrepresented. $1 stake.</p>
             <button class="btn-primary" onclick="addFreeBot('digit')">+ Add to my bots</button>
           </div>
+          <div class="freebot-card">
+            <span class="tag">Imported · Martingale</span>
+            <h3>Over Destroyer Bot</h3>
+            <p>Volatility 25 (1s). Bets digit-over-1, switches to digit-under-6 with 1.4x stake after each loss, resets on a win. $3 start, take-profit $7, stop-loss $12 (actually enforced — auto-stops).</p>
+            <button class="btn-primary" onclick="addFreeBot('overdestroyer')">+ Add to my bots</button>
+          </div>
         </div>
       </div>
     </div>
@@ -448,6 +454,7 @@ let balance = null;
 let tickHistories = {}; // symbol -> array of recent quotes, tracked independently per market
 let subscribedSymbols = new Set(); // markets we've already subscribed to ticks for
 let botConfigs = []; // dynamic list built via the bot builder: {id, type, name, stake, duration, lookback, threshold, running, cooldown}
+let pendingContracts = {}; // contract_id -> bot, so we can route win/loss back to the right bot (needed for martingale bots like Over Destroyer)
 let reqId = 1;
 const pending = {};
 
@@ -674,6 +681,11 @@ function handleMessage(data) {
     const c = data.proposal_open_contract;
     if (c.is_sold) {
       updateLogResult(c.contract_id, c.profit >= 0 ? "win" : "loss", c.profit);
+      const bot = pendingContracts[c.contract_id];
+      if (bot) {
+        delete pendingContracts[c.contract_id];
+        settleOverDestroyerTrade(bot, c.profit);
+      }
     }
   }
 }
@@ -825,8 +837,12 @@ function removeBot(id) {
 
 function toggleBot(id) {
   const bot = botConfigs.find(b => b.id === id);
-  if (bot) bot.running = !bot.running;
+  if (!bot) return;
+  bot.running = !bot.running;
   renderBotList();
+  if (bot.running && bot.type === "overdestroyer") {
+    placeOverDestroyerTrade(bot);
+  }
 }
 
 function renderBotList() {
@@ -840,9 +856,15 @@ function renderBotList() {
   }
   empty.classList.add("hidden");
   list.innerHTML = botConfigs.map(bot => {
-    const params = bot.type === "trend"
-      ? `${bot.symbol} · trend · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`
-      : `${bot.symbol} · digit · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
+    let params;
+    if (bot.type === "trend") {
+      params = `${bot.symbol} · trend · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`;
+    } else if (bot.type === "digit") {
+      params = `${bot.symbol} · digit · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
+    } else if (bot.type === "overdestroyer") {
+      const pl = bot.cumulativeProfit >= 0 ? `+${bot.cumulativeProfit.toFixed(2)}` : bot.cumulativeProfit.toFixed(2);
+      params = `${bot.symbol} · over/under martingale · next stake ${bot.stakeCurrent} · losses in a row ${bot.lossCount} · P/L ${pl} (TP ${bot.takeProfit} / SL -${bot.stopLoss})`;
+    }
     return `
       <div class="bot-list-item">
         <div class="bot-list-info">
@@ -915,6 +937,85 @@ async function placeTrade(bot, contractType) {
   // simple cooldown so bot doesn't spam trades every tick
   setTimeout(() => { bot.cooldown = false; }, 8000);
 }
+
+// ==== OVER DESTROYER BOT (imported strategy: Digit Over/Under with Martingale) ====
+// Translated from a Deriv Bot (Blockly) file: bets "digit over 1" first; after any loss,
+// switches to "digit under 6" and multiplies stake by the martingale factor; resets on a win.
+// Unlike the original file, Take Profit and Stop Loss are actually enforced here (auto-stops the bot).
+
+function determineOverDestroyerContract(bot) {
+  if (bot.lossCount === 0) return { contract_type: "DIGITOVER", barrier: String(bot.overBarrier) };
+  return { contract_type: "DIGITUNDER", barrier: String(bot.underBarrier) };
+}
+
+async function placeOverDestroyerTrade(bot) {
+  if (!bot.running) return;
+  const { contract_type, barrier } = determineOverDestroyerContract(bot);
+  const stake = bot.stakeCurrent;
+
+  try {
+    const proposalRes = await send({
+      proposal: 1,
+      amount: stake,
+      basis: "stake",
+      contract_type,
+      barrier,
+      currency: currentAccount.currency,
+      duration: 1,
+      duration_unit: "t",
+      underlying_symbol: bot.symbol
+    });
+
+    if (proposalRes.error) {
+      addLogRow(bot.name, contract_type, stake, "error: " + proposalRes.error.message, null);
+      bot.running = false;
+      renderBotList();
+      return;
+    }
+
+    const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
+    if (buyRes.error) {
+      addLogRow(bot.name, contract_type, stake, "error: " + buyRes.error.message, null);
+      bot.running = false;
+      renderBotList();
+      return;
+    }
+
+    const contractId = buyRes.buy.contract_id;
+    pendingContracts[contractId] = bot;
+    addLogRow(bot.name, `${contract_type} (barrier ${barrier})`, stake, "pending", contractId);
+    send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
+  } catch (e) {
+    addLogRow(bot.name, contract_type, stake, "error", null);
+    bot.running = false;
+    renderBotList();
+  }
+}
+
+function settleOverDestroyerTrade(bot, profit) {
+  bot.cumulativeProfit = (bot.cumulativeProfit || 0) + profit;
+
+  if (profit >= 0) {
+    bot.lossCount = 0;
+    bot.stakeCurrent = bot.initialStake;
+  } else {
+    bot.lossCount += 1;
+    bot.stakeCurrent = +(bot.stakeCurrent * bot.martingale).toFixed(2);
+  }
+
+  let stoppedReason = null;
+  if (bot.cumulativeProfit >= bot.takeProfit) stoppedReason = "take-profit reached";
+  else if (bot.cumulativeProfit <= -bot.stopLoss) stoppedReason = "stop-loss reached";
+
+  if (stoppedReason) {
+    bot.running = false;
+    addLogRow(bot.name, "—", 0, `stopped (${stoppedReason})`, null);
+  }
+
+  renderBotList();
+  if (bot.running) placeOverDestroyerTrade(bot);
+}
+
 
 // ==== MANUAL TRADING ====
 let manualSymbol = SYMBOL;
@@ -1034,13 +1135,27 @@ async function placeManualTrade() {
 async function addFreeBot(type) {
   const id = botIdCounter++;
   let bot;
+  const overDestroyerSymbol = "1HZ25V"; // matches the imported strategy's original market
+
   if (type === "trend") {
     bot = { id, type: "trend", name: `Free Trend Bot #${id}`, symbol: SYMBOL, stake: 1, duration: 5, lookback: 5, threshold: null, running: false, cooldown: false };
-  } else {
+    await ensureTickSubscription(SYMBOL);
+  } else if (type === "digit") {
     bot = { id, type: "digit", name: `Free Digit Bot #${id}`, symbol: SYMBOL, stake: 1, duration: 1, lookback: 20, threshold: 14, running: false, cooldown: false };
+    await ensureTickSubscription(SYMBOL);
+  } else if (type === "overdestroyer") {
+    bot = {
+      id, type: "overdestroyer", name: `Over Destroyer #${id}`, symbol: overDestroyerSymbol,
+      initialStake: 3, stakeCurrent: 3, martingale: 1.4,
+      overBarrier: 1, underBarrier: 6,
+      takeProfit: 7, stopLoss: 12,
+      lossCount: 0, cumulativeProfit: 0,
+      running: false
+    };
+    await ensureTickSubscription(overDestroyerSymbol);
   }
+
   botConfigs.push(bot);
-  await ensureTickSubscription(SYMBOL);
   renderBotList();
   switchTab("builder");
 }
