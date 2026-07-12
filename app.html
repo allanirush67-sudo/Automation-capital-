@@ -310,8 +310,9 @@
         <div class="builder-field">
           <label>Strategy type</label>
           <select id="builder-type" onchange="renderBuilderFields()">
-            <option value="trend">Momentum Trend — buys Rise/Fall</option>
-            <option value="digit">Digit Reversion — buys Even/Odd</option>
+            <option value="trend">Momentum Trend — Rise/Fall or Higher/Lower</option>
+            <option value="digit">Digit Reversion — Even/Odd or Over/Under</option>
+            <option value="overdestroyer">Martingale Over/Under — Over Destroyer style</option>
           </select>
         </div>
 
@@ -797,17 +798,76 @@ function renderBuilderFields() {
   if (type === "trend") {
     container.innerHTML = `
       <div class="builder-field"><label>Market</label><select id="f-symbol">${marketOptions}</select></div>
+      <div class="builder-field"><label>Trade type</label>
+        <select id="f-variant" onchange="renderBuilderFields()">
+          <option value="risefall">Rise/Fall</option>
+          <option value="higherlower">Higher/Lower</option>
+        </select>
+      </div>
       <div class="builder-field"><label>Lookback (ticks)</label><input type="number" id="f-lookback" value="5" min="3" max="20"></div>
       <div class="builder-field"><label>Stake</label><input type="number" id="f-stake" value="1" min="0.5" step="0.5"></div>
       <div class="builder-field"><label>Contract duration (ticks)</label><input type="number" id="f-duration" value="5" min="1" max="10"></div>
     `;
-  } else {
+    // re-check variant after render (select resets each render call)
+    const variantSel = document.getElementById("f-variant");
+    if (variantSel) {
+      variantSel.addEventListener("change", () => {
+        if (variantSel.value === "higherlower" && !document.getElementById("f-barrier-offset")) {
+          const field = document.createElement("div");
+          field.className = "builder-field";
+          field.id = "f-barrier-offset-wrap";
+          field.innerHTML = `<label>Barrier offset (e.g. +0.5 or -0.5)</label><input type="text" id="f-barrier-offset" value="+0.5">`;
+          variantSel.closest(".builder-field").after(field);
+        } else if (variantSel.value !== "higherlower") {
+          const wrap = document.getElementById("f-barrier-offset-wrap");
+          if (wrap) wrap.remove();
+        }
+      });
+    }
+  } else if (type === "digit") {
     container.innerHTML = `
       <div class="builder-field"><label>Market</label><select id="f-symbol">${marketOptions}</select></div>
+      <div class="builder-field"><label>Trade type</label>
+        <select id="f-variant" onchange="renderBuilderFields()">
+          <option value="evenodd">Even/Odd</option>
+          <option value="overunder">Over/Under</option>
+        </select>
+      </div>
       <div class="builder-field"><label>Lookback (ticks)</label><input type="number" id="f-lookback" value="20" min="10" max="40"></div>
       <div class="builder-field"><label>Trigger threshold (count)</label><input type="number" id="f-threshold" value="14" min="10" max="30"></div>
       <div class="builder-field"><label>Stake</label><input type="number" id="f-stake" value="1" min="0.5" step="0.5"></div>
       <div class="builder-field"><label>Contract duration (ticks)</label><input type="number" id="f-duration" value="1" min="1" max="10"></div>
+    `;
+    const variantSel = document.getElementById("f-variant");
+    if (variantSel) {
+      variantSel.addEventListener("change", () => {
+        if (variantSel.value === "overunder" && !document.getElementById("f-barrier-digit")) {
+          const field = document.createElement("div");
+          field.className = "builder-field";
+          field.id = "f-barrier-digit-wrap";
+          field.innerHTML = `<label>Barrier digit (0–9)</label><input type="number" id="f-barrier-digit" min="0" max="9" value="5">`;
+          variantSel.closest(".builder-field").after(field);
+        } else if (variantSel.value !== "overunder") {
+          const wrap = document.getElementById("f-barrier-digit-wrap");
+          if (wrap) wrap.remove();
+        }
+      });
+    }
+  } else if (type === "overdestroyer") {
+    container.innerHTML = `
+      <div class="builder-field"><label>Market</label><select id="f-symbol">
+        <option value="1HZ25V" selected>Volatility 25 (1s) Index</option>
+        <option value="1HZ100V">Volatility 100 (1s) Index</option>
+        <option value="1HZ75V">Volatility 75 (1s) Index</option>
+        <option value="1HZ50V">Volatility 50 (1s) Index</option>
+        <option value="1HZ10V">Volatility 10 (1s) Index</option>
+      </select></div>
+      <div class="builder-field"><label>Starting stake</label><input type="number" id="f-initial-stake" value="3" min="0.5" step="0.5"></div>
+      <div class="builder-field"><label>Martingale multiplier</label><input type="number" id="f-martingale" value="1.4" min="1" step="0.1"></div>
+      <div class="builder-field"><label>Over barrier digit</label><input type="number" id="f-over-barrier" min="0" max="9" value="1"></div>
+      <div class="builder-field"><label>Under barrier digit</label><input type="number" id="f-under-barrier" min="0" max="9" value="6"></div>
+      <div class="builder-field"><label>Take profit</label><input type="number" id="f-take-profit" value="7" min="0.5" step="0.5"></div>
+      <div class="builder-field"><label>Stop loss</label><input type="number" id="f-stop-loss" value="12" min="0.5" step="0.5"></div>
     `;
   }
 }
@@ -815,16 +875,53 @@ function renderBuilderFields() {
 async function addBot() {
   const type = document.getElementById("builder-type").value;
   const symbol = document.getElementById("f-symbol").value;
-  const stake = parseFloat(document.getElementById("f-stake").value) || 1;
-  const duration = parseInt(document.getElementById("f-duration").value) || 5;
-  const lookback = parseInt(document.getElementById("f-lookback").value) || (type === "trend" ? 5 : 20);
-  const threshold = type === "digit" ? (parseInt(document.getElementById("f-threshold").value) || 14) : null;
   const customName = document.getElementById("builder-name").value.trim();
-
   const id = botIdCounter++;
-  const name = customName || (type === "trend" ? `Trend Bot #${id}` : `Digit Bot #${id}`);
+  let bot;
 
-  botConfigs.push({ id, type, name, symbol, stake, duration, lookback, threshold, running: false, cooldown: false });
+  if (type === "trend") {
+    const variant = document.getElementById("f-variant")?.value || "risefall";
+    const barrierOffset = variant === "higherlower" ? (document.getElementById("f-barrier-offset")?.value || "+0.5") : null;
+    bot = {
+      id, type: "trend", variant, barrierOffset,
+      name: customName || `Trend Bot #${id}`,
+      symbol,
+      stake: parseFloat(document.getElementById("f-stake").value) || 1,
+      duration: parseInt(document.getElementById("f-duration").value) || 5,
+      lookback: parseInt(document.getElementById("f-lookback").value) || 5,
+      threshold: null, running: false, cooldown: false
+    };
+  } else if (type === "digit") {
+    const variant = document.getElementById("f-variant")?.value || "evenodd";
+    const barrierDigit = variant === "overunder" ? (parseInt(document.getElementById("f-barrier-digit")?.value) || 5) : null;
+    bot = {
+      id, type: "digit", variant, barrierDigit,
+      name: customName || `Digit Bot #${id}`,
+      symbol,
+      stake: parseFloat(document.getElementById("f-stake").value) || 1,
+      duration: parseInt(document.getElementById("f-duration").value) || 1,
+      lookback: parseInt(document.getElementById("f-lookback").value) || 20,
+      threshold: parseInt(document.getElementById("f-threshold").value) || 14,
+      running: false, cooldown: false
+    };
+  } else if (type === "overdestroyer") {
+    const initialStake = parseFloat(document.getElementById("f-initial-stake").value) || 3;
+    bot = {
+      id, type: "overdestroyer",
+      name: customName || `Over Destroyer #${id}`,
+      symbol,
+      initialStake, stakeCurrent: initialStake,
+      martingale: parseFloat(document.getElementById("f-martingale").value) || 1.4,
+      overBarrier: parseInt(document.getElementById("f-over-barrier").value) ?? 1,
+      underBarrier: parseInt(document.getElementById("f-under-barrier").value) ?? 6,
+      takeProfit: parseFloat(document.getElementById("f-take-profit").value) || 7,
+      stopLoss: parseFloat(document.getElementById("f-stop-loss").value) || 12,
+      lossCount: 0, cumulativeProfit: 0,
+      running: false
+    };
+  }
+
+  botConfigs.push(bot);
   document.getElementById("builder-name").value = "";
   await ensureTickSubscription(symbol);
   renderBotList();
@@ -858,9 +955,9 @@ function renderBotList() {
   list.innerHTML = botConfigs.map(bot => {
     let params;
     if (bot.type === "trend") {
-      params = `${bot.symbol} · trend · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`;
+      params = `${bot.symbol} · trend (${bot.variant === 'higherlower' ? 'Higher/Lower' : 'Rise/Fall'}) · lookback ${bot.lookback} · stake ${bot.stake} · dur ${bot.duration}t`;
     } else if (bot.type === "digit") {
-      params = `${bot.symbol} · digit · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
+      params = `${bot.symbol} · digit (${bot.variant === 'overunder' ? 'Over/Under' : 'Even/Odd'}) · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
     } else if (bot.type === "overdestroyer") {
       const pl = bot.cumulativeProfit >= 0 ? `+${bot.cumulativeProfit.toFixed(2)}` : bot.cumulativeProfit.toFixed(2);
       params = `${bot.symbol} · over/under martingale · next stake ${bot.stakeCurrent} · losses in a row ${bot.lossCount} · P/L ${pl} (TP ${bot.takeProfit} / SL -${bot.stopLoss})`;
@@ -896,9 +993,15 @@ function evaluateBots() {
 
     if (bot.type === "digit" && hist.length >= bot.lookback) {
       const recent = hist.slice(-bot.lookback);
-      const evenCount = recent.filter(v => (Math.floor(v * 100) % 10) % 2 === 0).length;
-      if (evenCount >= bot.threshold) placeTrade(bot, "DIGITODD");
-      else if (evenCount <= (bot.lookback - bot.threshold)) placeTrade(bot, "DIGITEVEN");
+      if (bot.variant === "overunder") {
+        const highCount = recent.filter(v => (Math.floor(v * 100) % 10) > bot.barrierDigit).length;
+        if (highCount >= bot.threshold) placeTrade(bot, "DIGITUNDER");
+        else if (highCount <= (bot.lookback - bot.threshold)) placeTrade(bot, "DIGITOVER");
+      } else {
+        const evenCount = recent.filter(v => (Math.floor(v * 100) % 10) % 2 === 0).length;
+        if (evenCount >= bot.threshold) placeTrade(bot, "DIGITODD");
+        else if (evenCount <= (bot.lookback - bot.threshold)) placeTrade(bot, "DIGITEVEN");
+      }
     }
   });
 }
@@ -906,17 +1009,24 @@ function evaluateBots() {
 async function placeTrade(bot, contractType) {
   bot.cooldown = true;
 
+  const payload = {
+    proposal: 1,
+    amount: bot.stake,
+    basis: "stake",
+    contract_type: contractType,
+    currency: currentAccount.currency,
+    duration: bot.duration,
+    duration_unit: "t",
+    underlying_symbol: bot.symbol
+  };
+  if (bot.type === "trend" && bot.variant === "higherlower" && bot.barrierOffset) {
+    payload.barrier = bot.barrierOffset;
+  } else if (bot.type === "digit" && bot.variant === "overunder" && bot.barrierDigit !== null && bot.barrierDigit !== undefined) {
+    payload.barrier = String(bot.barrierDigit);
+  }
+
   try {
-    const proposalRes = await send({
-      proposal: 1,
-      amount: bot.stake,
-      basis: "stake",
-      contract_type: contractType,
-      currency: currentAccount.currency,
-      duration: bot.duration,
-      duration_unit: "t",
-      underlying_symbol: bot.symbol
-    });
+    const proposalRes = await send(payload);
 
     if (proposalRes.error) {
       addLogRow(bot.name, contractType, bot.stake, "error: " + proposalRes.error.message, null);
