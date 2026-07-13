@@ -916,7 +916,7 @@ async function addBot() {
       underBarrier: parseInt(document.getElementById("f-under-barrier").value) ?? 6,
       takeProfit: parseFloat(document.getElementById("f-take-profit").value) || 7,
       stopLoss: parseFloat(document.getElementById("f-stop-loss").value) || 12,
-      lossCount: 0, cumulativeProfit: 0,
+      lossCount: 0, cumulativeProfit: 0, consecutiveErrors: 0,
       running: false
     };
   }
@@ -1063,6 +1063,21 @@ async function placeOverDestroyerTrade(bot) {
   const { contract_type, barrier } = determineOverDestroyerContract(bot);
   const stake = bot.stakeCurrent;
 
+  const retryAfterError = (message) => {
+    bot.consecutiveErrors = (bot.consecutiveErrors || 0) + 1;
+    addLogRow(bot.name, contract_type, stake, "error: " + message, null);
+
+    if (bot.consecutiveErrors >= 5) {
+      bot.running = false;
+      addLogRow(bot.name, "—", 0, "stopped (too many consecutive errors)", null);
+      renderBotList();
+      return;
+    }
+    renderBotList();
+    // brief pause before retrying, so a transient hiccup doesn't spam requests
+    setTimeout(() => { if (bot.running) placeOverDestroyerTrade(bot); }, 4000);
+  };
+
   try {
     const proposalRes = await send({
       proposal: 1,
@@ -1077,28 +1092,23 @@ async function placeOverDestroyerTrade(bot) {
     });
 
     if (proposalRes.error) {
-      addLogRow(bot.name, contract_type, stake, "error: " + proposalRes.error.message, null);
-      bot.running = false;
-      renderBotList();
+      retryAfterError(proposalRes.error.message);
       return;
     }
 
     const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
     if (buyRes.error) {
-      addLogRow(bot.name, contract_type, stake, "error: " + buyRes.error.message, null);
-      bot.running = false;
-      renderBotList();
+      retryAfterError(buyRes.error.message);
       return;
     }
 
+    bot.consecutiveErrors = 0;
     const contractId = buyRes.buy.contract_id;
     pendingContracts[contractId] = bot;
     addLogRow(bot.name, `${contract_type} (barrier ${barrier})`, stake, "pending", contractId);
     send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
   } catch (e) {
-    addLogRow(bot.name, contract_type, stake, "error", null);
-    bot.running = false;
-    renderBotList();
+    retryAfterError("connection issue");
   }
 }
 
@@ -1259,7 +1269,7 @@ async function addFreeBot(type) {
       initialStake: 3, stakeCurrent: 3, martingale: 1.4,
       overBarrier: 1, underBarrier: 6,
       takeProfit: 7, stopLoss: 12,
-      lossCount: 0, cumulativeProfit: 0,
+      lossCount: 0, cumulativeProfit: 0, consecutiveErrors: 0,
       running: false
     };
     await ensureTickSubscription(overDestroyerSymbol);
