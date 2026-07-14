@@ -399,25 +399,38 @@
     <div id="tab-freebots" class="tab-content">
       <div class="card">
         <h2>Free bots</h2>
-        <div class="sub">One-tap starter bots with sensible default settings — great for a first test.</div>
+        <div class="sub">Set your parameters and run immediately — no separate build step.</div>
         <div class="freebot-grid">
           <div class="freebot-card">
             <span class="tag">Beginner</span>
             <h3>Momentum Trend Bot</h3>
-            <p>Watches the last 5 ticks. Buys Rise on an uptrend, Fall on a downtrend. $1 stake, 5-tick duration.</p>
-            <button class="btn-primary" onclick="addFreeBot('trend')">+ Add to my bots</button>
+            <p>Volatility 100 (1s). Watches the last 5 ticks. Buys Rise on an uptrend, Fall on a downtrend.</p>
+            <div class="manual-grid">
+              <div class="builder-field"><label>Stake</label><input type="number" id="ft-stake" value="1" min="0.5" step="0.5"></div>
+              <div class="builder-field"><label>Duration (ticks)</label><input type="number" id="ft-duration" value="5" min="1" max="10"></div>
+            </div>
+            <button class="btn-primary" onclick="runFreeBot('trend')">▶ Run bot</button>
           </div>
           <div class="freebot-card">
             <span class="tag">Beginner</span>
             <h3>Digit Reversion Bot</h3>
-            <p>Watches the last 20 ticks' digits. Bets on reversion when one side (even/odd) is overrepresented. $1 stake.</p>
-            <button class="btn-primary" onclick="addFreeBot('digit')">+ Add to my bots</button>
+            <p>Volatility 100 (1s). Watches the last 20 ticks' digits. Bets on reversion when one side (even/odd) is overrepresented.</p>
+            <div class="manual-grid">
+              <div class="builder-field"><label>Stake</label><input type="number" id="fd-stake" value="1" min="0.5" step="0.5"></div>
+              <div class="builder-field"><label>Duration (ticks)</label><input type="number" id="fd-duration" value="1" min="1" max="10"></div>
+            </div>
+            <button class="btn-primary" onclick="runFreeBot('digit')">▶ Run bot</button>
           </div>
           <div class="freebot-card">
             <span class="tag">Imported · Martingale</span>
             <h3>Over Destroyer Bot</h3>
-            <p>Volatility 25 (1s). Bets digit-over-1, switches to digit-under-6 with 1.4x stake after each loss, resets on a win. $3 start, take-profit $7, stop-loss $12 (actually enforced — auto-stops).</p>
-            <button class="btn-primary" onclick="addFreeBot('overdestroyer')">+ Add to my bots</button>
+            <p>Volatility 25 (1s). Bets digit-over-1, switches to digit-under-6 with your chosen multiplier after each loss, resets on a win. Take-profit/stop-loss are actually enforced — auto-stops.</p>
+            <div class="manual-grid">
+              <div class="builder-field"><label>Starting stake</label><input type="number" id="fo-stake" value="3" min="0.5" step="0.5"></div>
+              <div class="builder-field"><label>Take profit</label><input type="number" id="fo-tp" value="7" min="0.5" step="0.5"></div>
+              <div class="builder-field"><label>Stop loss</label><input type="number" id="fo-sl" value="12" min="0.5" step="0.5"></div>
+            </div>
+            <button class="btn-primary" onclick="runFreeBot('overdestroyer')">▶ Run bot</button>
           </div>
         </div>
       </div>
@@ -1107,6 +1120,9 @@ async function placeOverDestroyerTrade(bot) {
     pendingContracts[contractId] = bot;
     addLogRow(bot.name, `${contract_type} (barrier ${barrier})`, stake, "pending", contractId);
     send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
+    // Safety net: if the live update never arrives, actively check on the contract
+    // instead of leaving the bot stuck waiting forever.
+    setTimeout(() => pollContractUntilSold(contractId), 4000);
   } catch (e) {
     retryAfterError("connection issue");
   }
@@ -1134,6 +1150,34 @@ function settleOverDestroyerTrade(bot, profit) {
 
   renderBotList();
   if (bot.running) placeOverDestroyerTrade(bot);
+}
+
+async function pollContractUntilSold(contractId, attempt) {
+  attempt = attempt || 0;
+  if (!pendingContracts[contractId]) return; // already handled by the live push -- nothing to do
+  if (attempt > 15) {
+    // give up after ~40s of trying so we don't poll forever on a stuck contract
+    const bot = pendingContracts[contractId];
+    delete pendingContracts[contractId];
+    if (bot) {
+      addLogRow(bot.name, "—", 0, "error: gave up waiting for trade result", null);
+    }
+    return;
+  }
+
+  const res = await send({ proposal_open_contract: 1, contract_id: contractId });
+  const c = res.proposal_open_contract;
+
+  if (c && c.is_sold) {
+    updateLogResult(contractId, c.profit >= 0 ? "win" : "loss", c.profit);
+    const bot = pendingContracts[contractId];
+    if (bot) {
+      delete pendingContracts[contractId];
+      settleOverDestroyerTrade(bot, c.profit);
+    }
+  } else {
+    setTimeout(() => pollContractUntilSold(contractId, attempt + 1), 2500);
+  }
 }
 
 
@@ -1252,25 +1296,32 @@ async function placeManualTrade() {
 }
 
 // ==== FREE BOTS ====
-async function addFreeBot(type) {
+async function runFreeBot(type) {
   const id = botIdCounter++;
   let bot;
   const overDestroyerSymbol = "1HZ25V"; // matches the imported strategy's original market
 
   if (type === "trend") {
-    bot = { id, type: "trend", name: `Free Trend Bot #${id}`, symbol: SYMBOL, stake: 1, duration: 5, lookback: 5, threshold: null, running: false, cooldown: false };
+    const stake = parseFloat(document.getElementById("ft-stake").value) || 1;
+    const duration = parseInt(document.getElementById("ft-duration").value) || 5;
+    bot = { id, type: "trend", name: `Free Trend Bot #${id}`, symbol: SYMBOL, stake, duration, lookback: 5, threshold: null, running: true, cooldown: false };
     await ensureTickSubscription(SYMBOL);
   } else if (type === "digit") {
-    bot = { id, type: "digit", name: `Free Digit Bot #${id}`, symbol: SYMBOL, stake: 1, duration: 1, lookback: 20, threshold: 14, running: false, cooldown: false };
+    const stake = parseFloat(document.getElementById("fd-stake").value) || 1;
+    const duration = parseInt(document.getElementById("fd-duration").value) || 1;
+    bot = { id, type: "digit", name: `Free Digit Bot #${id}`, symbol: SYMBOL, stake, duration, lookback: 20, threshold: 14, running: true, cooldown: false };
     await ensureTickSubscription(SYMBOL);
   } else if (type === "overdestroyer") {
+    const initialStake = parseFloat(document.getElementById("fo-stake").value) || 3;
+    const takeProfit = parseFloat(document.getElementById("fo-tp").value) || 7;
+    const stopLoss = parseFloat(document.getElementById("fo-sl").value) || 12;
     bot = {
       id, type: "overdestroyer", name: `Over Destroyer #${id}`, symbol: overDestroyerSymbol,
-      initialStake: 3, stakeCurrent: 3, martingale: 1.4,
+      initialStake, stakeCurrent: initialStake, martingale: 1.4,
       overBarrier: 1, underBarrier: 6,
-      takeProfit: 7, stopLoss: 12,
+      takeProfit, stopLoss,
       lossCount: 0, cumulativeProfit: 0, consecutiveErrors: 0,
-      running: false
+      running: true
     };
     await ensureTickSubscription(overDestroyerSymbol);
   }
@@ -1278,6 +1329,10 @@ async function addFreeBot(type) {
   botConfigs.push(bot);
   renderBotList();
   switchTab("builder");
+
+  if (bot.type === "overdestroyer") {
+    placeOverDestroyerTrade(bot);
+  }
 }
 
 // ==== TRADE LOG UI ====
