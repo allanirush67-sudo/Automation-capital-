@@ -204,6 +204,64 @@
   .modal-option:hover { border-color:var(--green); }
 
   .barrier-field { margin-bottom:16px; }
+
+  /* Digit stats */
+  .digit-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; margin:18px 0; }
+  .digit-circle {
+    aspect-ratio:1; border-radius:50%; border:2px solid var(--line); background:var(--bg-raised);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .digit-circle .d-num { font-size:16px; font-weight:700; }
+  .digit-circle .d-pct { font-size:10.5px; color:var(--text-dim); }
+  .digit-circle.highest { border-color:var(--green); }
+  .digit-circle.highest .d-pct { color:var(--green); }
+  .digit-circle.lowest { border-color:var(--red); }
+  .digit-circle.lowest .d-pct { color:var(--red); }
+  .digit-circle.second-highest { border-color:#4A9EFF; }
+  .digit-circle.second-lowest { border-color:var(--amber); }
+
+  .stats-summary-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+  .stats-summary-box { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; text-align:center; }
+  .stats-summary-label { display:block; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
+  .stats-summary-value { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; }
+
+  .pattern-toggle { display:flex; gap:8px; margin-bottom:16px; }
+  .pattern-tab-btn {
+    flex:1; background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
+    padding:10px; border-radius:7px; font-weight:600; font-size:13.5px; cursor:pointer;
+  }
+  .pattern-tab-btn.active { background:var(--bg-raised); color:var(--text); border-color:#3A4250; }
+  .pattern-bars { display:flex; gap:10px; }
+  .pattern-bar {
+    flex:1; border-radius:8px; padding:14px; text-align:center; font-weight:700;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .pattern-bar.a { background:rgba(62,207,142,0.15); color:var(--green); }
+  .pattern-bar.b { background:rgba(229,72,77,0.15); color:var(--red); }
+  .pattern-bar .p-pct { font-size:20px; display:block; }
+  .pattern-bar .p-label { font-size:11px; opacity:0.8; }
+
+  .digit-pattern-strip { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .pattern-chip {
+    width:32px; height:32px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace;
+  }
+  .pattern-chip.a { background:rgba(62,207,142,0.2); color:var(--green); }
+  .pattern-chip.b { background:rgba(229,72,77,0.2); color:var(--red); }
+
+  /* Numbered blocks (Bot Builder) */
+  .numbered-block { border-radius:10px; overflow:hidden; margin-bottom:18px; border:1px solid var(--line); }
+  .numbered-block-header {
+    background:linear-gradient(135deg, #1B4D6B, #163A54); color:#EAF4FA; font-weight:700; font-size:14px;
+    padding:12px 16px; display:flex; align-items:center; gap:10px;
+  }
+  .numbered-badge {
+    background:rgba(255,255,255,0.15); width:22px; height:22px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-family:'JetBrains Mono',monospace;
+  }
+  .numbered-block-body { background:var(--bg); padding:16px; }
+  .numbered-block-body .builder-field:last-child { margin-bottom:0; }
 </style>
 </head>
 <body>
@@ -229,6 +287,7 @@
     <button class="tab-btn" data-tab="manual" onclick="switchTab('manual')">Manual Trading</button>
     <button class="tab-btn" data-tab="freebots" onclick="switchTab('freebots')">Free Bots</button>
     <button class="tab-btn" data-tab="tradelog" onclick="switchTab('tradelog')">Trade Log</button>
+    <button class="tab-btn" data-tab="digitstats" onclick="switchTab('digitstats')">Digit Stats</button>
   </div>
 </div>
 
@@ -301,29 +360,77 @@
       </div>
     </div>
 
+    <!-- TAB: Digit Stats -->
+    <div id="tab-digitstats" class="tab-content">
+      <div class="card">
+        <h2>Digit stats</h2>
+        <div class="sub">Live digit frequency from real ticks — updates as new ticks arrive.</div>
+
+        <div class="builder-field">
+          <label>Market</label>
+          <select id="stats-symbol" onchange="onStatsSymbolChange()">
+            <option value="1HZ100V">Volatility 100 (1s) Index</option>
+            <option value="1HZ75V">Volatility 75 (1s) Index</option>
+            <option value="1HZ50V">Volatility 50 (1s) Index</option>
+            <option value="1HZ25V">Volatility 25 (1s) Index</option>
+            <option value="1HZ10V">Volatility 10 (1s) Index</option>
+          </select>
+        </div>
+
+        <div class="live-price" id="stats-live-price">Live price: --</div>
+        <div class="live-price" id="stats-sample-size">Sample size: 0 ticks</div>
+
+        <div class="digit-grid" id="digit-distribution-grid"></div>
+
+        <div class="stats-summary-row">
+          <div class="stats-summary-box"><span class="stats-summary-label">Highest</span><span class="stats-summary-value" id="stats-highest">--</span></div>
+          <div class="stats-summary-box"><span class="stats-summary-label">Lowest</span><span class="stats-summary-value" id="stats-lowest">--</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Pattern analysis</h2>
+        <div class="pattern-toggle">
+          <button class="pattern-tab-btn active" id="pattern-btn-evenodd" onclick="switchPatternView('evenodd')">Even / Odd</button>
+          <button class="pattern-tab-btn" id="pattern-btn-overunder" onclick="switchPatternView('overunder')">Over / Under 5</button>
+        </div>
+        <div class="pattern-bars" id="pattern-bars"></div>
+        <div class="sub" style="margin-top:18px;">Last 30 digits</div>
+        <div class="digit-pattern-strip" id="digit-pattern-strip"></div>
+      </div>
+    </div>
+
     <!-- TAB: Bot Builder -->
     <div id="tab-builder" class="tab-content">
       <div class="card">
         <h2>Bot builder</h2>
         <div class="sub">Choose a market and strategy type, set your parameters, and add it to your bots below.</div>
 
-        <div class="builder-field">
-          <label>Strategy type</label>
-          <select id="builder-type" onchange="renderBuilderFields()">
-            <option value="trend">Momentum Trend — Rise/Fall or Higher/Lower</option>
-            <option value="digit">Digit Reversion — Even/Odd or Over/Under</option>
-            <option value="overdestroyer">Martingale Over/Under — Over Destroyer style</option>
-          </select>
+        <div class="numbered-block">
+          <div class="numbered-block-header"><span class="numbered-badge">1</span> Trade parameters</div>
+          <div class="numbered-block-body">
+            <div class="builder-field">
+              <label>Strategy type</label>
+              <select id="builder-type" onchange="renderBuilderFields()">
+                <option value="trend">Momentum Trend — Rise/Fall or Higher/Lower</option>
+                <option value="digit">Digit Reversion — Even/Odd or Over/Under</option>
+                <option value="overdestroyer">Martingale Over/Under — Over Destroyer style</option>
+              </select>
+            </div>
+            <div id="builder-fields" class="builder-grid"></div>
+          </div>
         </div>
 
-        <div id="builder-fields" class="builder-grid"></div>
-
-        <div class="builder-field">
-          <label>Bot name (optional)</label>
-          <input type="text" id="builder-name" placeholder="e.g. My trend bot">
+        <div class="numbered-block">
+          <div class="numbered-block-header"><span class="numbered-badge">2</span> Save &amp; run</div>
+          <div class="numbered-block-body">
+            <div class="builder-field">
+              <label>Bot name (optional)</label>
+              <input type="text" id="builder-name" placeholder="e.g. My trend bot">
+            </div>
+            <button class="btn-primary" onclick="addBot()">+ Add bot</button>
+          </div>
         </div>
-
-        <button class="btn-primary" onclick="addBot()">+ Add bot</button>
       </div>
 
       <div class="card">
@@ -401,26 +508,6 @@
         <h2>Free bots</h2>
         <div class="sub">Set your parameters and run immediately — no separate build step.</div>
         <div class="freebot-grid">
-          <div class="freebot-card">
-            <span class="tag">Beginner</span>
-            <h3>Momentum Trend Bot</h3>
-            <p>Volatility 100 (1s). Watches the last 5 ticks. Buys Rise on an uptrend, Fall on a downtrend.</p>
-            <div class="manual-grid">
-              <div class="builder-field"><label>Stake</label><input type="number" id="ft-stake" value="1" min="0.5" step="0.5"></div>
-              <div class="builder-field"><label>Duration (ticks)</label><input type="number" id="ft-duration" value="5" min="1" max="10"></div>
-            </div>
-            <button class="btn-primary" onclick="runFreeBot('trend')">▶ Run bot</button>
-          </div>
-          <div class="freebot-card">
-            <span class="tag">Beginner</span>
-            <h3>Digit Reversion Bot</h3>
-            <p>Volatility 100 (1s). Watches the last 20 ticks' digits. Bets on reversion when one side (even/odd) is overrepresented.</p>
-            <div class="manual-grid">
-              <div class="builder-field"><label>Stake</label><input type="number" id="fd-stake" value="1" min="0.5" step="0.5"></div>
-              <div class="builder-field"><label>Duration (ticks)</label><input type="number" id="fd-duration" value="1" min="1" max="10"></div>
-            </div>
-            <button class="btn-primary" onclick="runFreeBot('digit')">▶ Run bot</button>
-          </div>
           <div class="freebot-card">
             <span class="tag">Imported · Martingale</span>
             <h3>Over Destroyer Bot</h3>
@@ -683,12 +770,17 @@ function handleMessage(data) {
     const sym = data.tick.symbol;
     if (!tickHistories[sym]) tickHistories[sym] = [];
     tickHistories[sym].push(data.tick.quote);
-    if (tickHistories[sym].length > 30) tickHistories[sym].shift();
+    if (tickHistories[sym].length > 100) tickHistories[sym].shift();
     evaluateBots();
 
     if (sym === manualSymbol) {
       const priceEl = document.getElementById("manual-live-price");
       if (priceEl) priceEl.textContent = "Live price: " + data.tick.quote;
+    }
+    if (sym === statsSymbol) {
+      const statsPriceEl = document.getElementById("stats-live-price");
+      if (statsPriceEl) statsPriceEl.textContent = "Live price: " + data.tick.quote;
+      renderDigitStats();
     }
   }
   if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
@@ -699,6 +791,8 @@ function handleMessage(data) {
       if (bot) {
         delete pendingContracts[c.contract_id];
         settleOverDestroyerTrade(bot, c.profit);
+      } else {
+        addLogRow("debug", "live-push", 0, `contract ${c.contract_id} settled but no matching bot found in pendingContracts`, null);
       }
     }
   }
@@ -757,6 +851,7 @@ async function connectToAccount(account) {
   await connectWS(otpData.data.url);
   await send({ balance: 1, subscribe: 1 });
   await ensureTickSubscription(manualSymbol);
+  await ensureTickSubscription(statsSymbol);
   // re-subscribe to markets used by any bots that already exist (e.g. after switching accounts)
   for (const bot of botConfigs) {
     await ensureTickSubscription(bot.symbol);
@@ -791,6 +886,7 @@ async function initDashboard() {
   accounts = acctData.data;
   renderAccountSelect();
   await connectToAccount(accounts[0]);
+  renderDigitStats();
 }
 
 // ==== BOT BUILDER ====
@@ -1072,7 +1168,11 @@ function determineOverDestroyerContract(bot) {
 }
 
 async function placeOverDestroyerTrade(bot) {
-  if (!bot.running) return;
+  if (!bot.running) {
+    addLogRow(bot.name, "debug", 0, "blocked: bot.running is false", null);
+    return;
+  }
+  addLogRow(bot.name, "debug", 0, "attempting new trade...", null);
   const { contract_type, barrier } = determineOverDestroyerContract(bot);
   const stake = bot.stakeCurrent;
 
@@ -1129,6 +1229,7 @@ async function placeOverDestroyerTrade(bot) {
 }
 
 function settleOverDestroyerTrade(bot, profit) {
+  addLogRow(bot.name, "debug", 0, `settle called, profit=${profit}, running=${bot.running}`, null);
   bot.cumulativeProfit = (bot.cumulativeProfit || 0) + profit;
 
   if (profit >= 0) {
@@ -1183,6 +1284,8 @@ async function pollContractUntilSold(contractId, attempt) {
 
 // ==== MANUAL TRADING ====
 let manualSymbol = SYMBOL;
+let statsSymbol = SYMBOL;
+let currentPatternView = "evenodd";
 let currentTradeType = "risefall";
 let manualDirection = null;
 
@@ -1246,6 +1349,98 @@ async function onManualSymbolChange() {
   manualSymbol = document.getElementById("manual-symbol").value;
   document.getElementById("manual-live-price").textContent = "Live price: --";
   await ensureTickSubscription(manualSymbol);
+}
+
+// ==== DIGIT STATS ====
+async function onStatsSymbolChange() {
+  statsSymbol = document.getElementById("stats-symbol").value;
+  document.getElementById("stats-live-price").textContent = "Live price: --";
+  await ensureTickSubscription(statsSymbol);
+  renderDigitStats();
+}
+
+function switchPatternView(view) {
+  currentPatternView = view;
+  document.getElementById("pattern-btn-evenodd").classList.toggle("active", view === "evenodd");
+  document.getElementById("pattern-btn-overunder").classList.toggle("active", view === "overunder");
+  renderDigitStats();
+}
+
+function lastDigitOf(quote) {
+  // matches the same last-digit approach used by our digit bots
+  const str = quote.toFixed(2);
+  return parseInt(str[str.length - 1]);
+}
+
+function renderDigitStats() {
+  const grid = document.getElementById("digit-distribution-grid");
+  const sampleEl = document.getElementById("stats-sample-size");
+  const highestEl = document.getElementById("stats-highest");
+  const lowestEl = document.getElementById("stats-lowest");
+  const barsEl = document.getElementById("pattern-bars");
+  const stripEl = document.getElementById("digit-pattern-strip");
+  if (!grid) return; // tab not in DOM yet
+
+  const hist = tickHistories[statsSymbol] || [];
+  sampleEl.textContent = `Sample size: ${hist.length} ticks`;
+
+  if (hist.length === 0) {
+    grid.innerHTML = "";
+    barsEl.innerHTML = "";
+    stripEl.innerHTML = "";
+    highestEl.textContent = "--";
+    lowestEl.textContent = "--";
+    return;
+  }
+
+  const digits = hist.map(lastDigitOf);
+
+  // distribution counts
+  const counts = new Array(10).fill(0);
+  digits.forEach(d => counts[d]++);
+  const pcts = counts.map(c => (c / digits.length) * 100);
+
+  const sortedIdx = [...Array(10).keys()].sort((a, b) => pcts[b] - pcts[a]);
+  const highestDigit = sortedIdx[0], secondHighest = sortedIdx[1];
+  const lowestDigit = sortedIdx[9], secondLowest = sortedIdx[8];
+
+  grid.innerHTML = counts.map((c, d) => {
+    let cls = "digit-circle";
+    if (d === highestDigit) cls += " highest";
+    else if (d === lowestDigit) cls += " lowest";
+    else if (d === secondHighest) cls += " second-highest";
+    else if (d === secondLowest) cls += " second-lowest";
+    return `<div class="${cls}"><span class="d-num">${d}</span><span class="d-pct">${pcts[d].toFixed(1)}%</span></div>`;
+  }).join("");
+
+  highestEl.textContent = `${highestDigit} (${pcts[highestDigit].toFixed(1)}%)`;
+  lowestEl.textContent = `${lowestDigit} (${pcts[lowestDigit].toFixed(1)}%)`;
+
+  // pattern analysis
+  let aCount, bCount, aLabel, bLabel;
+  if (currentPatternView === "evenodd") {
+    aCount = digits.filter(d => d % 2 === 0).length;
+    bCount = digits.length - aCount;
+    aLabel = "EVEN"; bLabel = "ODD";
+  } else {
+    aCount = digits.filter(d => d > 4).length; // Over 4 (i.e. 5-9)
+    bCount = digits.length - aCount;
+    aLabel = "OVER 4"; bLabel = "UNDER 5";
+  }
+  const aPct = (aCount / digits.length) * 100;
+  const bPct = 100 - aPct;
+
+  barsEl.innerHTML = `
+    <div class="pattern-bar a"><span class="p-pct">${aPct.toFixed(1)}%</span><span class="p-label">${aLabel}</span></div>
+    <div class="pattern-bar b"><span class="p-pct">${bPct.toFixed(1)}%</span><span class="p-label">${bLabel}</span></div>
+  `;
+
+  const last30 = digits.slice(-30);
+  stripEl.innerHTML = last30.map(d => {
+    const isA = currentPatternView === "evenodd" ? (d % 2 === 0) : (d > 4);
+    const label = currentPatternView === "evenodd" ? (isA ? "E" : "O") : (isA ? "O" : "U");
+    return `<div class="pattern-chip ${isA ? 'a' : 'b'}">${label}</div>`;
+  }).join("");
 }
 
 async function placeManualTrade() {
