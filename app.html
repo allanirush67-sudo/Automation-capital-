@@ -746,7 +746,28 @@ function send(payload) {
   payload.req_id = id;
   return new Promise((resolve) => {
     pending[id] = resolve;
-    ws.send(JSON.stringify(payload));
+
+    const timeoutMs = 15000;
+    const timer = setTimeout(() => {
+      if (pending[id]) {
+        delete pending[id];
+        resolve({ error: { message: "No response from server (request timed out)" } });
+      }
+    }, timeoutMs);
+
+    // wrap resolve so the timeout is cleared as soon as a real response arrives
+    pending[id] = (data) => {
+      clearTimeout(timer);
+      resolve(data);
+    };
+
+    try {
+      ws.send(JSON.stringify(payload));
+    } catch (e) {
+      clearTimeout(timer);
+      delete pending[id];
+      resolve({ error: { message: "Could not send request (connection may be closed)" } });
+    }
   });
 }
 
@@ -1523,7 +1544,7 @@ async function runFreeBot(type) {
 
   botConfigs.push(bot);
   renderBotList();
-  switchTab("builder");
+  switchTab("tradelog");
 
   if (bot.type === "overdestroyer") {
     placeOverDestroyerTrade(bot);
