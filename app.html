@@ -128,12 +128,14 @@
   .empty-log { color:var(--text-dim); font-size:13.5px; padding:20px 0; text-align:center; }
 
   /* P&L */
-  .pnl-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
-  .pnl-box { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px 8px; text-align:center; }
-  .pnl-value { display:block; font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; margin-top:4px; }
+  .pnl-strip {
+    margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    font-size:12.5px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;
+  }
+  .pnl-value { font-size:13px; font-weight:700; color:var(--text); }
   .pnl-value.positive { color:var(--green); }
   .pnl-value.negative { color:var(--red); }
-  @media (max-width:480px) { .pnl-row { grid-template-columns:repeat(2, 1fr); } }
 
   /* Manual trading */
   .manual-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-bottom:18px; }
@@ -414,28 +416,12 @@
           <tbody id="log-body"></tbody>
         </table>
         <div class="empty-log" id="empty-log">No trades yet — start a bot or place a manual trade.</div>
-      </div>
 
-      <div class="card">
-        <h2>P&amp;L</h2>
-        <div class="sub">Running profit/loss across all trades this session</div>
-        <div class="pnl-row">
-          <div class="pnl-box">
-            <span class="stats-summary-label">Net P&amp;L</span>
-            <span class="pnl-value" id="pnl-net">0.00</span>
-          </div>
-          <div class="pnl-box">
-            <span class="stats-summary-label">Wins</span>
-            <span class="pnl-value" id="pnl-wins">0</span>
-          </div>
-          <div class="pnl-box">
-            <span class="stats-summary-label">Losses</span>
-            <span class="pnl-value" id="pnl-losses">0</span>
-          </div>
-          <div class="pnl-box">
-            <span class="stats-summary-label">Win rate</span>
-            <span class="pnl-value" id="pnl-winrate">--</span>
-          </div>
+        <div class="pnl-strip">
+          <span>P&amp;L: <strong class="pnl-value" id="pnl-net">0.00</strong></span>
+          <span id="pnl-wins">0</span>W
+          <span id="pnl-losses">0</span>L
+          <span id="pnl-winrate">--</span>
         </div>
       </div>
     </div>
