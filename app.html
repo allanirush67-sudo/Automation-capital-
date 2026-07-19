@@ -250,6 +250,25 @@
   .pattern-chip.a { background:rgba(62,207,142,0.2); color:var(--green); }
   .pattern-chip.b { background:rgba(229,72,77,0.2); color:var(--red); }
 
+  /* Market Scanner */
+  .scanner-disclaimer {
+    font-size:12.5px; color:var(--text-dim); background:rgba(232,163,61,0.08);
+    border:1px solid rgba(232,163,61,0.25); border-radius:8px; padding:12px 14px; margin-bottom:18px; line-height:1.5;
+  }
+  .scanner-disclaimer strong { color:var(--amber); }
+  .scan-type-btn {
+    background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
+    padding:10px 16px; border-radius:7px; font-weight:600; font-size:13.5px; cursor:pointer;
+  }
+  .scan-type-btn.active { background:var(--bg-raised); color:var(--text); border-color:var(--green); }
+  .scan-result-card { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:18px; margin-top:16px; }
+  .scan-result-title { font-weight:700; font-size:15px; color:var(--green); margin-bottom:10px; }
+  .scan-result-market { font-size:15.5px; font-weight:700; margin-bottom:14px; }
+  .scan-result-pred { font-family:'JetBrains Mono',monospace; color:var(--green); margin-left:8px; }
+  .scan-reasoning { font-size:13px; color:var(--text-dim); margin:14px 0; line-height:1.5; }
+  .scan-result-actions { display:flex; gap:10px; margin-top:10px; }
+  .scan-result-actions .btn-primary, .scan-result-actions .btn-secondary { flex:1; }
+
   /* Numbered blocks (Bot Builder) */
   .numbered-block { border-radius:10px; overflow:hidden; margin-bottom:18px; border:1px solid var(--line); }
   .numbered-block-header {
@@ -262,6 +281,35 @@
   }
   .numbered-block-body { background:var(--bg); padding:16px; }
   .numbered-block-body .builder-field:last-child { margin-bottom:0; }
+
+  /* AI Scanner */
+  .scanner-disclaimer {
+    font-size:12.5px; color:var(--text-dim); background:rgba(232,163,61,0.08);
+    border:1px solid rgba(232,163,61,0.25); border-radius:8px; padding:12px 14px;
+    line-height:1.5; margin-bottom:18px;
+  }
+  .scanner-disclaimer strong { color:var(--amber); }
+  .scan-type-btn {
+    background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
+    padding:10px 16px; border-radius:7px; font-weight:600; font-size:13.5px; cursor:pointer; margin-right:8px; margin-bottom:8px;
+  }
+  .scan-type-btn.active { background:var(--bg-raised); color:var(--text); border-color:#3A4250; }
+  .scan-status { font-size:13.5px; color:var(--text-dim); padding:16px 0; text-align:center; }
+  .scan-result-card {
+    background:var(--bg); border:1px solid var(--green); border-radius:10px; padding:18px; margin-top:18px;
+  }
+  .scan-result-card.no-signal { border-color:var(--line); }
+  .scan-result-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .scan-result-header h3 { font-size:15.5px; font-weight:700; }
+  .scan-badge { font-family:'JetBrains Mono',monospace; font-size:11px; padding:3px 9px; border-radius:100px; }
+  .scan-badge.over { background:rgba(62,207,142,0.15); color:var(--green); }
+  .scan-badge.under { background:rgba(229,72,77,0.15); color:var(--red); }
+  .scan-stats-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:14px; }
+  .scan-stat-box { background:var(--bg-raised); border-radius:8px; padding:10px; text-align:center; }
+  .scan-stat-label { display:block; font-size:10.5px; color:var(--text-dim); text-transform:uppercase; margin-bottom:4px; }
+  .scan-stat-value { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; }
+  .scan-detail-text { font-size:13px; color:var(--text-dim); margin-bottom:16px; }
+  .scan-result-actions { display:flex; gap:10px; }
 </style>
 </head>
 <body>
@@ -288,6 +336,7 @@
     <button class="tab-btn" data-tab="freebots" onclick="switchTab('freebots')">Free Bots</button>
     <button class="tab-btn" data-tab="tradelog" onclick="switchTab('tradelog')">Trade Log</button>
     <button class="tab-btn" data-tab="digitstats" onclick="switchTab('digitstats')">Digit Stats</button>
+    <button class="tab-btn" data-tab="aiscanner" onclick="switchTab('aiscanner')">Market Scanner</button>
   </div>
 </div>
 
@@ -397,6 +446,35 @@
         <div class="pattern-bars" id="pattern-bars"></div>
         <div class="sub" style="margin-top:18px;">Last 30 digits</div>
         <div class="digit-pattern-strip" id="digit-pattern-strip"></div>
+      </div>
+    </div>
+
+    <!-- TAB: AI Scanner -->
+    <div id="tab-aiscanner" class="tab-content">
+      <div class="card">
+        <h2>AI market scanner</h2>
+        <div class="sub">Scans all 5 markets for statistically unusual digit patterns based on real live ticks.</div>
+        <p class="scanner-disclaimer">
+          <strong>Honest note:</strong> synthetic indices are built to be statistically random. A digit looking "underrepresented" recently does not reliably predict what comes next — this tool surfaces real patterns in past ticks, not a proven edge. Treat any signal as a starting point to test on demo, not a guarantee.
+        </p>
+
+        <div class="contract-toggle" style="flex-wrap:wrap;">
+          <button class="scan-type-btn active" id="scan-type-overunder" onclick="selectScanType('overunder')">Over/Under</button>
+          <button class="scan-type-btn" id="scan-type-evenodd" onclick="selectScanType('evenodd')">Even/Odd</button>
+          <button class="scan-type-btn" id="scan-type-matchesdiffers" onclick="selectScanType('matchesdiffers')">Matches/Differs</button>
+        </div>
+
+        <div class="manual-grid">
+          <div class="builder-field"><label>Stake</label><input type="number" id="scan-stake" value="1" min="0.5" step="0.5"></div>
+          <div class="builder-field"><label>Prediction after loss<span id="scan-after-label"></span></label><input type="number" id="scan-after-loss" min="0" max="9" value="5"></div>
+          <div class="builder-field"><label>Martingale multiplier</label><input type="number" id="scan-martingale" value="1.4" min="1" step="0.1"></div>
+          <div class="builder-field"><label>Take profit</label><input type="number" id="scan-tp" value="7" min="0.5" step="0.5"></div>
+          <div class="builder-field"><label>Stop loss</label><input type="number" id="scan-sl" value="12" min="0.5" step="0.5"></div>
+        </div>
+
+        <button class="btn-primary" onclick="scanMarkets()">🔍 Scan markets</button>
+
+        <div id="scan-result-area"></div>
       </div>
     </div>
 
@@ -1184,6 +1262,19 @@ async function placeTrade(bot, contractType) {
 // Unlike the original file, Take Profit and Stop Loss are actually enforced here (auto-stops the bot).
 
 function determineOverDestroyerContract(bot) {
+  const kind = bot.kind || "overunder"; // default keeps existing Over Destroyer bots working unchanged
+
+  if (kind === "evenodd") {
+    const pick = bot.lossCount === 0 ? bot.predictionBeforeLoss : bot.predictionAfterLoss; // "EVEN" or "ODD"
+    return { contract_type: pick === "EVEN" ? "DIGITEVEN" : "DIGITODD", barrier: null };
+  }
+
+  if (kind === "matchesdiffers") {
+    const digit = bot.lossCount === 0 ? bot.predictionBeforeLoss : bot.predictionAfterLoss;
+    return { contract_type: "DIGITDIFF", barrier: String(digit) }; // Differs only -- Matches has poor odds by design, so we don't offer it
+  }
+
+  // default: overunder
   if (bot.lossCount === 0) return { contract_type: "DIGITOVER", barrier: String(bot.overBarrier) };
   return { contract_type: "DIGITUNDER", barrier: String(bot.underBarrier) };
 }
@@ -1213,17 +1304,19 @@ async function placeOverDestroyerTrade(bot) {
   };
 
   try {
-    const proposalRes = await send({
+    const payload = {
       proposal: 1,
       amount: stake,
       basis: "stake",
       contract_type,
-      barrier,
       currency: currentAccount.currency,
       duration: 1,
       duration_unit: "t",
       underlying_symbol: bot.symbol
-    });
+    };
+    if (barrier !== null && barrier !== undefined) payload.barrier = barrier;
+
+    const proposalRes = await send(payload);
 
     if (proposalRes.error) {
       retryAfterError(proposalRes.error.message);
@@ -1239,7 +1332,7 @@ async function placeOverDestroyerTrade(bot) {
     bot.consecutiveErrors = 0;
     const contractId = buyRes.buy.contract_id;
     pendingContracts[contractId] = bot;
-    addLogRow(bot.name, `${contract_type} (barrier ${barrier})`, stake, "pending", contractId);
+    addLogRow(bot.name, barrier !== null ? `${contract_type} (barrier ${barrier})` : contract_type, stake, "pending", contractId);
     send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
     // Safety net: if the live update never arrives, actively check on the contract
     // instead of leaving the bot stuck waiting forever.
@@ -1462,6 +1555,187 @@ function renderDigitStats() {
     const label = currentPatternView === "evenodd" ? (isA ? "E" : "O") : (isA ? "O" : "U");
     return `<div class="pattern-chip ${isA ? 'a' : 'b'}">${label}</div>`;
   }).join("");
+}
+
+// ==== MARKET SCANNER (statistical, not AI -- see disclaimer in the tab itself) ====
+let currentScanType = "overunder";
+let lastScanResult = null;
+const ALL_MARKETS = ["1HZ100V", "1HZ75V", "1HZ50V", "1HZ25V", "1HZ10V"];
+const MARKET_LABELS = {
+  "1HZ100V": "Volatility 100 (1s) Index",
+  "1HZ75V": "Volatility 75 (1s) Index",
+  "1HZ50V": "Volatility 50 (1s) Index",
+  "1HZ25V": "Volatility 25 (1s) Index",
+  "1HZ10V": "Volatility 10 (1s) Index"
+};
+
+function selectScanType(type) {
+  currentScanType = type;
+  ["overunder", "evenodd", "matchesdiffers"].forEach(t => {
+    document.getElementById("scan-type-" + t).classList.toggle("active", t === type);
+  });
+  const afterLabel = document.getElementById("scan-after-label");
+  const afterInput = document.getElementById("scan-after-loss");
+  if (type === "evenodd") {
+    afterLabel.textContent = " (EVEN/ODD — set automatically from scan)";
+    afterInput.closest(".builder-field").classList.add("hidden");
+  } else {
+    afterLabel.textContent = "";
+    afterInput.closest(".builder-field").classList.remove("hidden");
+  }
+}
+
+function zScoreToConfidence(z) {
+  const conf = 50 + Math.abs(z) * 12;
+  return Math.max(50, Math.min(99, Math.round(conf)));
+}
+
+function analyzeMarketForType(symbol, type) {
+  const hist = tickHistories[symbol] || [];
+  if (hist.length < 20) return null; // not enough real data yet to say anything meaningful
+  const digits = hist.map(lastDigitOf);
+  const n = digits.length;
+
+  if (type === "evenodd") {
+    const evenCount = digits.filter(d => d % 2 === 0).length;
+    const z = (evenCount - n / 2) / Math.sqrt(n * 0.25);
+    const prediction = evenCount > n / 2 ? "ODD" : "EVEN"; // bet against the overrepresented side
+    return {
+      symbol, type, prediction, z,
+      confidence: zScoreToConfidence(z),
+      reasoning: `${evenCount > n/2 ? 'Even' : 'Odd'} digits are overrepresented in the last ${n} ticks (${(Math.max(evenCount, n-evenCount)/n*100).toFixed(1)}%). Betting on reversion toward ${prediction}.`
+    };
+  }
+
+  if (type === "overunder") {
+    const overCount = digits.filter(d => d > 4).length;
+    const z = (overCount - n / 2) / Math.sqrt(n * 0.25);
+    const prediction = overCount > n / 2 ? "UNDER" : "OVER";
+    return {
+      symbol, type, prediction, barrier: 4, z,
+      confidence: zScoreToConfidence(z),
+      reasoning: `Digits ${overCount > n/2 ? 'over' : 'under'} 4 are overrepresented in the last ${n} ticks (${(Math.max(overCount, n-overCount)/n*100).toFixed(1)}%). Betting on reversion toward ${prediction} 4.`
+    };
+  }
+
+  if (type === "matchesdiffers") {
+    const counts = new Array(10).fill(0);
+    digits.forEach(d => counts[d]++);
+    const maxDigit = counts.indexOf(Math.max(...counts));
+    const pct = counts[maxDigit] / n;
+    const expected = 0.1;
+    const z = (pct - expected) / Math.sqrt(expected * (1 - expected) / n);
+    return {
+      symbol, type, prediction: "DIFFERS", digit: maxDigit, z,
+      confidence: zScoreToConfidence(z),
+      reasoning: `Digit ${maxDigit} has appeared ${(pct*100).toFixed(1)}% of the last ${n} ticks (expected ~10%). Betting Differs against it continuing.`
+    };
+  }
+
+  return null;
+}
+
+async function scanMarkets() {
+  const resultArea = document.getElementById("scan-result-area");
+  resultArea.innerHTML = `<p class="sub" style="margin-top:16px;">Scanning all 5 markets, gathering live ticks...</p>`;
+
+  // make sure we're subscribed to every market before analyzing
+  await Promise.all(ALL_MARKETS.map(sym => ensureTickSubscription(sym)));
+
+  // give freshly-subscribed markets a moment to actually accumulate ticks
+  await new Promise(r => setTimeout(r, 3000));
+
+  const results = ALL_MARKETS
+    .map(sym => analyzeMarketForType(sym, currentScanType))
+    .filter(r => r !== null)
+    .sort((a, b) => b.confidence - a.confidence);
+
+  if (results.length === 0) {
+    resultArea.innerHTML = `<p class="sub" style="margin-top:16px;">Still gathering data on these markets — try scanning again in a few seconds.</p>`;
+    return;
+  }
+
+  const best = results[0];
+  lastScanResult = best;
+
+  if (best.confidence < 60) {
+    resultArea.innerHTML = `
+      <div class="scan-result-card">
+        <div class="scan-result-title">No strong signal right now</div>
+        <p class="sub">The best candidate (${MARKET_LABELS[best.symbol]}) only reached ${best.confidence}% confidence. Try again shortly, or on a different market.</p>
+        <button class="btn-secondary" onclick="scanMarkets()">New scan</button>
+      </div>
+    `;
+    return;
+  }
+
+  const predictionLabel = best.type === "overunder" ? `${best.prediction} ${best.barrier}`
+    : best.type === "matchesdiffers" ? `Differs ${best.digit}`
+    : best.prediction;
+
+  resultArea.innerHTML = `
+    <div class="scan-result-card">
+      <div class="scan-result-title">✓ Signal detected</div>
+      <div class="scan-result-market">${MARKET_LABELS[best.symbol]} <span class="scan-result-pred">${predictionLabel}</span></div>
+      <div class="stats-summary-row">
+        <div class="stats-summary-box"><span class="stats-summary-label">Confidence</span><span class="stats-summary-value">${best.confidence}%</span></div>
+        <div class="stats-summary-box"><span class="stats-summary-label">Z-score</span><span class="stats-summary-value">${best.z.toFixed(2)}</span></div>
+      </div>
+      <p class="scan-reasoning">${best.reasoning}</p>
+      <div class="scan-result-actions">
+        <button class="btn-secondary" onclick="scanMarkets()">New scan</button>
+        <button class="btn-primary" onclick="loadAndRunScannedBot()">Load &amp; Run Bot</button>
+      </div>
+    </div>
+  `;
+}
+
+async function loadAndRunScannedBot() {
+  if (!lastScanResult) return;
+  const r = lastScanResult;
+  const stake = parseFloat(document.getElementById("scan-stake").value) || 1;
+  const martingale = parseFloat(document.getElementById("scan-martingale").value) || 1.4;
+  const takeProfit = parseFloat(document.getElementById("scan-tp").value) || 7;
+  const stopLoss = parseFloat(document.getElementById("scan-sl").value) || 12;
+  const id = botIdCounter++;
+
+  let bot;
+  if (r.type === "overunder") {
+    const overBarrier = r.barrier, underBarrier = r.barrier;
+    bot = {
+      id, type: "overdestroyer", kind: "overunder",
+      name: `Scanner Bot #${id}`, symbol: r.symbol,
+      initialStake: stake, stakeCurrent: stake, martingale,
+      overBarrier, underBarrier,
+      takeProfit, stopLoss, lossCount: 0, cumulativeProfit: 0, consecutiveErrors: 0,
+      running: true
+    };
+  } else if (r.type === "evenodd") {
+    bot = {
+      id, type: "overdestroyer", kind: "evenodd",
+      name: `Scanner Bot #${id}`, symbol: r.symbol,
+      initialStake: stake, stakeCurrent: stake, martingale,
+      predictionBeforeLoss: r.prediction, predictionAfterLoss: r.prediction === "EVEN" ? "ODD" : "EVEN",
+      takeProfit, stopLoss, lossCount: 0, cumulativeProfit: 0, consecutiveErrors: 0,
+      running: true
+    };
+  } else if (r.type === "matchesdiffers") {
+    const afterLossDigit = parseInt(document.getElementById("scan-after-loss").value);
+    bot = {
+      id, type: "overdestroyer", kind: "matchesdiffers",
+      name: `Scanner Bot #${id}`, symbol: r.symbol,
+      initialStake: stake, stakeCurrent: stake, martingale,
+      predictionBeforeLoss: r.digit, predictionAfterLoss: isNaN(afterLossDigit) ? r.digit : afterLossDigit,
+      takeProfit, stopLoss, lossCount: 0, cumulativeProfit: 0, consecutiveErrors: 0,
+      running: true
+    };
+  }
+
+  botConfigs.push(bot);
+  await ensureTickSubscription(r.symbol);
+  renderBotList();
+  switchTab("tradelog");
+  placeOverDestroyerTrade(bot);
 }
 
 async function placeManualTrade() {
