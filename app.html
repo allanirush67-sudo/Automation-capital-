@@ -127,6 +127,14 @@
   .log-table .pending { color:var(--amber); }
   .empty-log { color:var(--text-dim); font-size:13.5px; padding:20px 0; text-align:center; }
 
+  /* P&L */
+  .pnl-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+  .pnl-box { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px 8px; text-align:center; }
+  .pnl-value { display:block; font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; margin-top:4px; }
+  .pnl-value.positive { color:var(--green); }
+  .pnl-value.negative { color:var(--red); }
+  @media (max-width:480px) { .pnl-row { grid-template-columns:repeat(2, 1fr); } }
+
   /* Manual trading */
   .manual-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-bottom:18px; }
   .contract-toggle { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
@@ -406,6 +414,29 @@
           <tbody id="log-body"></tbody>
         </table>
         <div class="empty-log" id="empty-log">No trades yet — start a bot or place a manual trade.</div>
+      </div>
+
+      <div class="card">
+        <h2>P&amp;L</h2>
+        <div class="sub">Running profit/loss across all trades this session</div>
+        <div class="pnl-row">
+          <div class="pnl-box">
+            <span class="stats-summary-label">Net P&amp;L</span>
+            <span class="pnl-value" id="pnl-net">0.00</span>
+          </div>
+          <div class="pnl-box">
+            <span class="stats-summary-label">Wins</span>
+            <span class="pnl-value" id="pnl-wins">0</span>
+          </div>
+          <div class="pnl-box">
+            <span class="stats-summary-label">Losses</span>
+            <span class="pnl-value" id="pnl-losses">0</span>
+          </div>
+          <div class="pnl-box">
+            <span class="stats-summary-label">Win rate</span>
+            <span class="pnl-value" id="pnl-winrate">--</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -763,6 +794,8 @@ function logout() {
   currentToken = null;
   Object.assign(botConfigs, []); botConfigs.length = 0;
   renderBotList();
+  pnlNet = 0; pnlWins = 0; pnlLosses = 0;
+  renderPnL();
   document.getElementById("dashboard-view").classList.add("hidden");
   document.getElementById("login-view").classList.remove("hidden");
   document.getElementById("tab-nav").classList.add("hidden");
@@ -890,8 +923,6 @@ function handleMessage(data) {
       if (bot) {
         delete pendingContracts[c.contract_id];
         settleOverDestroyerTrade(bot, c.profit);
-      } else {
-        addLogRow("debug", "live-push", 0, `contract ${c.contract_id} settled but no matching bot found in pendingContracts`, null);
       }
     }
   }
@@ -1280,11 +1311,7 @@ function determineOverDestroyerContract(bot) {
 }
 
 async function placeOverDestroyerTrade(bot) {
-  if (!bot.running) {
-    addLogRow(bot.name, "debug", 0, "blocked: bot.running is false", null);
-    return;
-  }
-  addLogRow(bot.name, "debug", 0, "attempting new trade...", null);
+  if (!bot.running) return;
   const { contract_type, barrier } = determineOverDestroyerContract(bot);
   const stake = bot.stakeCurrent;
 
@@ -1343,7 +1370,6 @@ async function placeOverDestroyerTrade(bot) {
 }
 
 function settleOverDestroyerTrade(bot, profit) {
-  addLogRow(bot.name, "debug", 0, `settle called, profit=${profit}, running=${bot.running}`, null);
   bot.cumulativeProfit = (bot.cumulativeProfit || 0) + profit;
 
   if (profit >= 0) {
@@ -1837,13 +1863,37 @@ function addLogRow(botLabel, contractType, stake, result, contractId) {
   tbody.prepend(row);
 }
 
+let pnlNet = 0, pnlWins = 0, pnlLosses = 0;
+
 function updateLogResult(contractId, result, profit) {
+  pnlNet += profit;
+  if (result === "win") pnlWins++; else pnlLosses++;
+  renderPnL();
+
   const row = document.getElementById(`row-${contractId}`);
   if (!row) return;
   const cell = row.children[4];
   const profitStr = profit >= 0 ? `+${Number(profit).toFixed(2)}` : Number(profit).toFixed(2);
   cell.textContent = `${result} (${profitStr})`;
   cell.className = result === "win" ? "win" : "loss";
+}
+
+function renderPnL() {
+  const netEl = document.getElementById("pnl-net");
+  const winsEl = document.getElementById("pnl-wins");
+  const lossesEl = document.getElementById("pnl-losses");
+  const rateEl = document.getElementById("pnl-winrate");
+  if (!netEl) return;
+
+  const netStr = pnlNet >= 0 ? `+${pnlNet.toFixed(2)}` : pnlNet.toFixed(2);
+  netEl.textContent = netStr;
+  netEl.className = "pnl-value " + (pnlNet >= 0 ? "positive" : "negative");
+
+  winsEl.textContent = pnlWins;
+  lossesEl.textContent = pnlLosses;
+
+  const total = pnlWins + pnlLosses;
+  rateEl.textContent = total > 0 ? `${((pnlWins / total) * 100).toFixed(0)}%` : "--";
 }
 
 // ==== BOOTSTRAP ====
