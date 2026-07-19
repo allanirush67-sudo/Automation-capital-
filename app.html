@@ -781,7 +781,9 @@ function logout() {
   Object.assign(botConfigs, []); botConfigs.length = 0;
   renderBotList();
   pnlNet = 0; pnlWins = 0; pnlLosses = 0;
+  tradeHistory = [];
   renderPnL();
+  renderTradeLog();
   document.getElementById("dashboard-view").classList.add("hidden");
   document.getElementById("login-view").classList.remove("hidden");
   document.getElementById("tab-nav").classList.add("hidden");
@@ -1838,30 +1840,62 @@ async function runFreeBot(type) {
 }
 
 // ==== TRADE LOG UI ====
-function addLogRow(botLabel, contractType, stake, result, contractId) {
-  document.getElementById("empty-log").classList.add("hidden");
-  const tbody = document.getElementById("log-body");
-  const row = document.createElement("tr");
-  row.id = contractId ? `row-${contractId}` : "";
-  const time = new Date().toLocaleTimeString();
-  const resultClass = result === "pending" ? "pending" : (result.startsWith("error") ? "loss" : "");
-  row.innerHTML = `<td>${time}</td><td>${botLabel}</td><td>${contractType}</td><td>${stake}</td><td class="${resultClass}">${result}</td>`;
-  tbody.prepend(row);
-}
-
+// Every trade lives here as plain data. The table and P&L are always redrawn
+// FROM this array -- nothing ever tries to find-and-patch one old DOM row,
+// which removes an entire class of "update silently did nothing" bugs.
+let tradeHistory = []; // { contractId, time, botLabel, contractType, stake, result, profit }
 let pnlNet = 0, pnlWins = 0, pnlLosses = 0;
+
+function addLogRow(botLabel, contractType, stake, result, contractId) {
+  tradeHistory.unshift({
+    contractId, time: new Date().toLocaleTimeString(), botLabel, contractType, stake, result, profit: null
+  });
+  renderTradeLog();
+}
 
 function updateLogResult(contractId, result, profit) {
   pnlNet += profit;
   if (result === "win") pnlWins++; else pnlLosses++;
-  renderPnL();
 
-  const row = document.getElementById(`row-${contractId}`);
-  if (!row) return;
-  const cell = row.children[4];
-  const profitStr = profit >= 0 ? `+${Number(profit).toFixed(2)}` : Number(profit).toFixed(2);
-  cell.textContent = `${result} (${profitStr})`;
-  cell.className = result === "win" ? "win" : "loss";
+  const entry = tradeHistory.find(t => t.contractId === contractId);
+  if (entry) {
+    entry.result = result;
+    entry.profit = profit;
+  } else {
+    // Safety net: if for any reason the original pending row wasn't found
+    // (shouldn't normally happen now), still record the result so nothing is lost.
+    tradeHistory.unshift({ contractId, time: new Date().toLocaleTimeString(), botLabel: "?", contractType: "?", stake: 0, result, profit });
+  }
+
+  renderTradeLog();
+  renderPnL();
+}
+
+function renderTradeLog() {
+  const tbody = document.getElementById("log-body");
+  const empty = document.getElementById("empty-log");
+  if (!tbody) return;
+
+  if (tradeHistory.length === 0) {
+    tbody.innerHTML = "";
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  tbody.innerHTML = tradeHistory.map(t => {
+    let resultText, resultClass;
+    if (t.result === "pending") {
+      resultText = "pending"; resultClass = "pending";
+    } else if (t.result.startsWith("error") || t.result.startsWith("stopped")) {
+      resultText = t.result; resultClass = "loss";
+    } else {
+      const profitStr = t.profit >= 0 ? `+${Number(t.profit).toFixed(2)}` : Number(t.profit).toFixed(2);
+      resultText = `${t.result} (${profitStr})`;
+      resultClass = t.result === "win" ? "win" : "loss";
+    }
+    return `<tr><td>${t.time}</td><td>${t.botLabel}</td><td>${t.contractType}</td><td>${t.stake}</td><td class="${resultClass}">${resultText}</td></tr>`;
+  }).join("");
 }
 
 function renderPnL() {
