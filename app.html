@@ -359,7 +359,7 @@
     <h1>Connect your Deriv account</h1>
     <p>Log in with your own Deriv account to see your balance and run bots. Automation Capital never sees or stores your password.</p>
     <button class="btn-primary" onclick="startLogin()">Log in with Deriv</button>
-    <p style="margin-top:18px; font-size:13.5px; color:var(--text-dim);">New to Deriv? <a href="#" onclick="startSignup(); return false;" style="color:var(--green); text-decoration:underline;">Create a free account</a></p>
+    <p style="margin-top:18px; font-size:13.5px; color:var(--text-dim);">New to Deriv? <a href="#" onclick="startSignup(); return false;" style="color:var(--green); text-decoration:underline;">Create a free account</a> (opens in a new tab — come back here and tap "Log in with Deriv" once you're signed up)</p>
     <p id="login-error" class="hidden" style="color:var(--red); font-size:13px; margin-top:16px;"></p>
   </div>
 
@@ -677,16 +677,18 @@ async function generateCodeChallenge(verifier) {
 
 // ==== LOGIN (new secure flow) ====
 async function startLogin() {
-  const authUrl = await buildAuthUrl(false);
+  const authUrl = await buildAuthUrl();
   window.location.href = authUrl;
 }
 
-async function startSignup() {
-  const authUrl = await buildAuthUrl(true);
-  window.location.href = authUrl;
+function startSignup() {
+  // The commission plan (Turnover) is carried by this exact referral link,
+  // not by any parameter we can attach to our own OAuth URL -- so new sign-ups
+  // go through Deriv's real referral link first, then come back to log in and trade.
+  window.open("https://partner-tracking.deriv.com/click?a=42237&o=1&c=4&link_id=1", "_blank");
 }
 
-async function buildAuthUrl(isSignup) {
+async function buildAuthUrl() {
   const codeVerifier = randomString(64);
   const state = randomString(24);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -694,21 +696,13 @@ async function buildAuthUrl(isSignup) {
   sessionStorage.setItem("dc_code_verifier", codeVerifier);
   sessionStorage.setItem("dc_state", state);
 
-  let authUrl = `https://auth.deriv.com/oauth2/auth?response_type=code`
+  const authUrl = `https://auth.deriv.com/oauth2/auth?response_type=code`
     + `&client_id=${encodeURIComponent(CLIENT_ID)}`
     + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
     + `&scope=${encodeURIComponent("trade")}`
     + `&state=${encodeURIComponent(state)}`
     + `&code_challenge=${encodeURIComponent(codeChallenge)}`
     + `&code_challenge_method=S256`;
-
-  if (isSignup) {
-    authUrl += `&prompt=registration`
-      + `&sidc=${encodeURIComponent("019e05c4-3e8d-7595-a8a2-456217f7623e")}`
-      + `&utm_medium=affiliate`
-      + `&utm_source=42237`
-      + `&utm_campaign=automation_capital`;
-  }
 
   return authUrl;
 }
