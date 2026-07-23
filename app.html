@@ -1890,6 +1890,7 @@ function addLogRow(botLabel, contractType, stake, result, contractId) {
 }
 
 function updateLogResult(contractId, result, profit) {
+  profit = Number(profit) || 0; // Deriv sometimes sends this as text -- force it to a real number
   pnlNet += profit;
   if (result === "win") pnlWins++; else pnlLosses++;
 
@@ -1943,6 +1944,7 @@ function renderPnL() {
   const statusEl = document.getElementById("pnl-status");
   if (!netEl) return;
 
+  pnlNet = Number(pnlNet) || 0; // defensive safety net, even though updateLogResult now guarantees this
   const netStr = pnlNet >= 0 ? `+${pnlNet.toFixed(2)}` : pnlNet.toFixed(2);
   netEl.textContent = netStr;
   netEl.className = "pnl-box-value " + (pnlNet >= 0 ? "positive" : "negative");
