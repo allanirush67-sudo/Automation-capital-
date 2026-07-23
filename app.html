@@ -1202,7 +1202,8 @@ function renderBotList() {
     } else if (bot.type === "digit") {
       params = `${bot.symbol} · digit (${bot.variant === 'overunder' ? 'Over/Under' : 'Even/Odd'}) · lookback ${bot.lookback} · threshold ${bot.threshold} · stake ${bot.stake} · dur ${bot.duration}t`;
     } else if (bot.type === "overdestroyer") {
-      const pl = bot.cumulativeProfit >= 0 ? `+${bot.cumulativeProfit.toFixed(2)}` : bot.cumulativeProfit.toFixed(2);
+      const cp = Number(bot.cumulativeProfit) || 0;
+      const pl = cp >= 0 ? `+${cp.toFixed(2)}` : cp.toFixed(2);
       params = `${bot.symbol} · over/under martingale · next stake ${bot.stakeCurrent} · losses in a row ${bot.lossCount} · P/L ${pl} (TP ${bot.takeProfit} / SL -${bot.stopLoss})`;
     }
     return `
@@ -1382,8 +1383,9 @@ async function placeOverDestroyerTrade(bot) {
 }
 
 function settleOverDestroyerTrade(bot, profit) {
+  profit = Number(profit) || 0; // Deriv sometimes sends this as text -- force it to a real number
   addLogRow(bot.name, "debug", 0, `settle: profit=${profit}, running=${bot.running}, prevStake=${bot.stakeCurrent}, prevLossCount=${bot.lossCount}`, null);
-  bot.cumulativeProfit = (bot.cumulativeProfit || 0) + profit;
+  bot.cumulativeProfit = (Number(bot.cumulativeProfit) || 0) + profit;
 
   if (profit >= 0) {
     bot.lossCount = 0;
