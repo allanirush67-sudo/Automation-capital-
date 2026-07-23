@@ -912,21 +912,14 @@ function handleMessage(data) {
     const c = data.proposal_open_contract;
     if (c.is_sold) {
       try {
-        const matchedBot = pendingContracts[c.contract_id];
-        if (matchedBot) {
-          addLogRow(matchedBot.name, "debug", 0, `live push settled: contract_id=${c.contract_id}`, null);
-        }
         updateLogResult(c.contract_id, c.profit >= 0 ? "win" : "loss", c.profit);
         const bot = pendingContracts[c.contract_id];
         if (bot) {
           delete pendingContracts[c.contract_id];
-          addLogRow(bot.name, "debug", 0, `about to call settleOverDestroyerTrade`, null);
           settleOverDestroyerTrade(bot, c.profit);
-        } else {
-          addLogRow("?", "debug", 0, `no bot found in pendingContracts for contract_id=${c.contract_id}`, null);
         }
       } catch (err) {
-        addLogRow("?", "debug", 0, `EXCEPTION in settlement handler: ${err.message}`, null);
+        addLogRow("?", "—", 0, `error: ${err.message}`, null);
       }
     }
   }
@@ -1316,13 +1309,9 @@ function determineOverDestroyerContract(bot) {
 }
 
 async function placeOverDestroyerTrade(bot) {
-  if (!bot.running) {
-    addLogRow(bot.name, "debug", 0, "not running -- skip", null);
-    return;
-  }
+  if (!bot.running) return;
   const { contract_type, barrier } = determineOverDestroyerContract(bot);
   const stake = bot.stakeCurrent;
-  addLogRow(bot.name, "debug", 0, `attempting ${contract_type} barrier=${barrier} stake=${stake}`, null);
 
   const retryAfterError = (message) => {
     bot.consecutiveErrors = (bot.consecutiveErrors || 0) + 1;
@@ -1358,7 +1347,6 @@ async function placeOverDestroyerTrade(bot) {
       retryAfterError(proposalRes.error.message);
       return;
     }
-    addLogRow(bot.name, "debug", 0, `proposal ok id=${proposalRes.proposal.id} ask=${proposalRes.proposal.ask_price}`, null);
 
     const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
     if (buyRes.error) {
@@ -1368,23 +1356,20 @@ async function placeOverDestroyerTrade(bot) {
 
     bot.consecutiveErrors = 0;
     const contractId = buyRes.buy.contract_id;
-    addLogRow(bot.name, "debug", 0, `bought contract_id=${contractId}`, null);
     pendingContracts[contractId] = bot;
     addLogRow(bot.name, barrier !== null ? `${contract_type} (barrier ${barrier})` : contract_type, stake, "pending", contractId);
     send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
-    addLogRow(bot.name, "debug", 0, `subscribed + poll scheduled for contract_id=${contractId}`, null);
     // Safety net: if the live update never arrives, actively check on the contract
     // instead of leaving the bot stuck waiting forever.
     setTimeout(() => pollContractUntilSold(contractId), 4000);
   } catch (e) {
-    addLogRow(bot.name, "debug", 0, `caught exception: ${e.message}`, null);
+    addLogRow(bot.name, "—", 0, `error: ${e.message}`, null);
     retryAfterError("connection issue");
   }
 }
 
 function settleOverDestroyerTrade(bot, profit) {
   profit = Number(profit) || 0; // Deriv sometimes sends this as text -- force it to a real number
-  addLogRow(bot.name, "debug", 0, `settle: profit=${profit}, running=${bot.running}, prevStake=${bot.stakeCurrent}, prevLossCount=${bot.lossCount}`, null);
   bot.cumulativeProfit = (Number(bot.cumulativeProfit) || 0) + profit;
 
   if (profit >= 0) {
@@ -1404,7 +1389,6 @@ function settleOverDestroyerTrade(bot, profit) {
     addLogRow(bot.name, "—", 0, `stopped (${stoppedReason})`, null);
   }
 
-  addLogRow(bot.name, "debug", 0, `settle done: newStake=${bot.stakeCurrent}, newLossCount=${bot.lossCount}, cumProfit=${bot.cumulativeProfit}, willContinue=${bot.running}`, null);
   renderBotList();
   if (bot.running) placeOverDestroyerTrade(bot);
 }
@@ -1422,10 +1406,8 @@ async function pollContractUntilSold(contractId, attempt) {
     return;
   }
 
-  const botRef = pendingContracts[contractId];
   const res = await send({ proposal_open_contract: 1, contract_id: contractId });
   const c = res.proposal_open_contract;
-  if (botRef) addLogRow(botRef.name, "debug", 0, `poll attempt=${attempt} contract_id=${contractId} is_sold=${c ? c.is_sold : "no-data"} err=${res.error ? res.error.message : "none"}`, null);
 
   if (c && c.is_sold) {
     try {
@@ -1433,13 +1415,10 @@ async function pollContractUntilSold(contractId, attempt) {
       const bot = pendingContracts[contractId];
       if (bot) {
         delete pendingContracts[contractId];
-        addLogRow(bot.name, "debug", 0, `poll: about to call settleOverDestroyerTrade`, null);
         settleOverDestroyerTrade(bot, c.profit);
-      } else {
-        addLogRow("?", "debug", 0, `poll: no bot found in pendingContracts for contract_id=${contractId}`, null);
       }
     } catch (err) {
-      addLogRow("?", "debug", 0, `EXCEPTION in poll settlement: ${err.message}`, null);
+      addLogRow("?", "—", 0, `error: ${err.message}`, null);
     }
   } else {
     setTimeout(() => pollContractUntilSold(contractId, attempt + 1), 2500);
