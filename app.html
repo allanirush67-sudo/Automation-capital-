@@ -128,14 +128,19 @@
   .empty-log { color:var(--text-dim); font-size:13.5px; padding:20px 0; text-align:center; }
 
   /* P&L */
-  .pnl-strip {
-    margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
-    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-    font-size:12.5px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;
+  .pnl-status {
+    font-size:15px; font-weight:700; padding:12px 16px; border-radius:8px; margin-bottom:16px; text-align:center;
   }
-  .pnl-value { font-size:13px; font-weight:700; color:var(--text); }
-  .pnl-value.positive { color:var(--green); }
-  .pnl-value.negative { color:var(--red); }
+  .pnl-status.neutral { background:var(--bg); color:var(--text-dim); border:1px solid var(--line); }
+  .pnl-status.winning { background:rgba(62,207,142,0.12); color:var(--green); border:1px solid rgba(62,207,142,0.4); }
+  .pnl-status.losing { background:rgba(229,72,77,0.12); color:var(--red); border:1px solid rgba(229,72,77,0.4); }
+  .pnl-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; }
+  .pnl-box { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:16px; text-align:center; }
+  .pnl-box-label { display:block; font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; }
+  .pnl-box-value { font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; }
+  .pnl-box-value.positive { color:var(--green); }
+  .pnl-box-value.negative { color:var(--red); }
+  @media (min-width:480px) { .pnl-grid { grid-template-columns:repeat(5, 1fr); } }
 
   /* Manual trading */
   .manual-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-bottom:18px; }
@@ -416,12 +421,18 @@
           <tbody id="log-body"></tbody>
         </table>
         <div class="empty-log" id="empty-log">No trades yet — start a bot or place a manual trade.</div>
+      </div>
 
-        <div class="pnl-strip">
-          <span>P&amp;L: <strong class="pnl-value" id="pnl-net">0.00</strong></span>
-          <span id="pnl-wins">0</span>W
-          <span id="pnl-losses">0</span>L
-          <span id="pnl-winrate">--</span>
+      <div class="card">
+        <h2>P&amp;L summary</h2>
+        <div class="sub">Overall performance across all trades this session</div>
+        <div class="pnl-status" id="pnl-status">No trades yet</div>
+        <div class="pnl-grid">
+          <div class="pnl-box"><span class="pnl-box-label">Net P&amp;L</span><span class="pnl-box-value" id="pnl-net">0.00</span></div>
+          <div class="pnl-box"><span class="pnl-box-label">Wins</span><span class="pnl-box-value" id="pnl-wins">0</span></div>
+          <div class="pnl-box"><span class="pnl-box-label">Losses</span><span class="pnl-box-value" id="pnl-losses">0</span></div>
+          <div class="pnl-box"><span class="pnl-box-label">Total trades</span><span class="pnl-box-value" id="pnl-total">0</span></div>
+          <div class="pnl-box"><span class="pnl-box-label">Win rate</span><span class="pnl-box-value" id="pnl-winrate">--</span></div>
         </div>
       </div>
     </div>
@@ -900,6 +911,10 @@ function handleMessage(data) {
   if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
     const c = data.proposal_open_contract;
     if (c.is_sold) {
+      const matchedBot = pendingContracts[c.contract_id];
+      if (matchedBot) {
+        addLogRow(matchedBot.name, "debug", 0, `live push settled: contract_id=${c.contract_id}`, null);
+      }
       updateLogResult(c.contract_id, c.profit >= 0 ? "win" : "loss", c.profit);
       const bot = pendingContracts[c.contract_id];
       if (bot) {
@@ -1293,9 +1308,13 @@ function determineOverDestroyerContract(bot) {
 }
 
 async function placeOverDestroyerTrade(bot) {
-  if (!bot.running) return;
+  if (!bot.running) {
+    addLogRow(bot.name, "debug", 0, "not running -- skip", null);
+    return;
+  }
   const { contract_type, barrier } = determineOverDestroyerContract(bot);
   const stake = bot.stakeCurrent;
+  addLogRow(bot.name, "debug", 0, `attempting ${contract_type} barrier=${barrier} stake=${stake}`, null);
 
   const retryAfterError = (message) => {
     bot.consecutiveErrors = (bot.consecutiveErrors || 0) + 1;
@@ -1331,6 +1350,7 @@ async function placeOverDestroyerTrade(bot) {
       retryAfterError(proposalRes.error.message);
       return;
     }
+    addLogRow(bot.name, "debug", 0, `proposal ok id=${proposalRes.proposal.id} ask=${proposalRes.proposal.ask_price}`, null);
 
     const buyRes = await send({ buy: proposalRes.proposal.id, price: proposalRes.proposal.ask_price });
     if (buyRes.error) {
@@ -1340,18 +1360,22 @@ async function placeOverDestroyerTrade(bot) {
 
     bot.consecutiveErrors = 0;
     const contractId = buyRes.buy.contract_id;
+    addLogRow(bot.name, "debug", 0, `bought contract_id=${contractId}`, null);
     pendingContracts[contractId] = bot;
     addLogRow(bot.name, barrier !== null ? `${contract_type} (barrier ${barrier})` : contract_type, stake, "pending", contractId);
     send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 });
+    addLogRow(bot.name, "debug", 0, `subscribed + poll scheduled for contract_id=${contractId}`, null);
     // Safety net: if the live update never arrives, actively check on the contract
     // instead of leaving the bot stuck waiting forever.
     setTimeout(() => pollContractUntilSold(contractId), 4000);
   } catch (e) {
+    addLogRow(bot.name, "debug", 0, `caught exception: ${e.message}`, null);
     retryAfterError("connection issue");
   }
 }
 
 function settleOverDestroyerTrade(bot, profit) {
+  addLogRow(bot.name, "debug", 0, `settle: profit=${profit}, running=${bot.running}, prevStake=${bot.stakeCurrent}, prevLossCount=${bot.lossCount}`, null);
   bot.cumulativeProfit = (bot.cumulativeProfit || 0) + profit;
 
   if (profit >= 0) {
@@ -1371,6 +1395,7 @@ function settleOverDestroyerTrade(bot, profit) {
     addLogRow(bot.name, "—", 0, `stopped (${stoppedReason})`, null);
   }
 
+  addLogRow(bot.name, "debug", 0, `settle done: newStake=${bot.stakeCurrent}, newLossCount=${bot.lossCount}, cumProfit=${bot.cumulativeProfit}, willContinue=${bot.running}`, null);
   renderBotList();
   if (bot.running) placeOverDestroyerTrade(bot);
 }
@@ -1388,8 +1413,10 @@ async function pollContractUntilSold(contractId, attempt) {
     return;
   }
 
+  const botRef = pendingContracts[contractId];
   const res = await send({ proposal_open_contract: 1, contract_id: contractId });
   const c = res.proposal_open_contract;
+  if (botRef) addLogRow(botRef.name, "debug", 0, `poll attempt=${attempt} contract_id=${contractId} is_sold=${c ? c.is_sold : "no-data"} err=${res.error ? res.error.message : "none"}`, null);
 
   if (c && c.is_sold) {
     updateLogResult(contractId, c.profit >= 0 ? "win" : "loss", c.profit);
@@ -1844,6 +1871,7 @@ function addLogRow(botLabel, contractType, stake, result, contractId) {
   tradeHistory.unshift({
     contractId, time: new Date().toLocaleTimeString(), botLabel, contractType, stake, result, profit: null
   });
+  if (tradeHistory.length > 150) tradeHistory.length = 150;
   renderTradeLog();
 }
 
@@ -1896,18 +1924,35 @@ function renderPnL() {
   const netEl = document.getElementById("pnl-net");
   const winsEl = document.getElementById("pnl-wins");
   const lossesEl = document.getElementById("pnl-losses");
+  const totalEl = document.getElementById("pnl-total");
   const rateEl = document.getElementById("pnl-winrate");
+  const statusEl = document.getElementById("pnl-status");
   if (!netEl) return;
 
   const netStr = pnlNet >= 0 ? `+${pnlNet.toFixed(2)}` : pnlNet.toFixed(2);
   netEl.textContent = netStr;
-  netEl.className = "pnl-value " + (pnlNet >= 0 ? "positive" : "negative");
+  netEl.className = "pnl-box-value " + (pnlNet >= 0 ? "positive" : "negative");
 
   winsEl.textContent = pnlWins;
   lossesEl.textContent = pnlLosses;
 
   const total = pnlWins + pnlLosses;
+  totalEl.textContent = total;
   rateEl.textContent = total > 0 ? `${((pnlWins / total) * 100).toFixed(0)}%` : "--";
+
+  if (total === 0) {
+    statusEl.textContent = "No trades yet";
+    statusEl.className = "pnl-status neutral";
+  } else if (pnlNet > 0) {
+    statusEl.textContent = `Overall winning — up ${netStr}`;
+    statusEl.className = "pnl-status winning";
+  } else if (pnlNet < 0) {
+    statusEl.textContent = `Overall losing — down ${netStr}`;
+    statusEl.className = "pnl-status losing";
+  } else {
+    statusEl.textContent = "Overall break-even";
+    statusEl.className = "pnl-status neutral";
+  }
 }
 
 // ==== BOOTSTRAP ====
