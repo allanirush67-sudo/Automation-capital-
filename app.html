@@ -911,15 +911,22 @@ function handleMessage(data) {
   if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
     const c = data.proposal_open_contract;
     if (c.is_sold) {
-      const matchedBot = pendingContracts[c.contract_id];
-      if (matchedBot) {
-        addLogRow(matchedBot.name, "debug", 0, `live push settled: contract_id=${c.contract_id}`, null);
-      }
-      updateLogResult(c.contract_id, c.profit >= 0 ? "win" : "loss", c.profit);
-      const bot = pendingContracts[c.contract_id];
-      if (bot) {
-        delete pendingContracts[c.contract_id];
-        settleOverDestroyerTrade(bot, c.profit);
+      try {
+        const matchedBot = pendingContracts[c.contract_id];
+        if (matchedBot) {
+          addLogRow(matchedBot.name, "debug", 0, `live push settled: contract_id=${c.contract_id}`, null);
+        }
+        updateLogResult(c.contract_id, c.profit >= 0 ? "win" : "loss", c.profit);
+        const bot = pendingContracts[c.contract_id];
+        if (bot) {
+          delete pendingContracts[c.contract_id];
+          addLogRow(bot.name, "debug", 0, `about to call settleOverDestroyerTrade`, null);
+          settleOverDestroyerTrade(bot, c.profit);
+        } else {
+          addLogRow("?", "debug", 0, `no bot found in pendingContracts for contract_id=${c.contract_id}`, null);
+        }
+      } catch (err) {
+        addLogRow("?", "debug", 0, `EXCEPTION in settlement handler: ${err.message}`, null);
       }
     }
   }
@@ -1419,11 +1426,18 @@ async function pollContractUntilSold(contractId, attempt) {
   if (botRef) addLogRow(botRef.name, "debug", 0, `poll attempt=${attempt} contract_id=${contractId} is_sold=${c ? c.is_sold : "no-data"} err=${res.error ? res.error.message : "none"}`, null);
 
   if (c && c.is_sold) {
-    updateLogResult(contractId, c.profit >= 0 ? "win" : "loss", c.profit);
-    const bot = pendingContracts[contractId];
-    if (bot) {
-      delete pendingContracts[contractId];
-      settleOverDestroyerTrade(bot, c.profit);
+    try {
+      updateLogResult(contractId, c.profit >= 0 ? "win" : "loss", c.profit);
+      const bot = pendingContracts[contractId];
+      if (bot) {
+        delete pendingContracts[contractId];
+        addLogRow(bot.name, "debug", 0, `poll: about to call settleOverDestroyerTrade`, null);
+        settleOverDestroyerTrade(bot, c.profit);
+      } else {
+        addLogRow("?", "debug", 0, `poll: no bot found in pendingContracts for contract_id=${contractId}`, null);
+      }
+    } catch (err) {
+      addLogRow("?", "debug", 0, `EXCEPTION in poll settlement: ${err.message}`, null);
     }
   } else {
     setTimeout(() => pollContractUntilSold(contractId, attempt + 1), 2500);
